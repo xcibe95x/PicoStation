@@ -45,9 +45,9 @@ static inline void send_subq(uint8_t *subqdata) {
                 (reverseBits(subqdata[9],8) << 16) |
                 (reverseBits(subqdata[10],8) << 8) |
                 (reverseBits(subqdata[11],8));
-    pio_sm_put_blocking(pio1, SUBQ_SM, reverseBits(sub1,32));
-    pio_sm_put_blocking(pio1, SUBQ_SM, reverseBits(sub2,32));
-    pio_sm_put_blocking(pio1, SUBQ_SM, reverseBits(sub3,32));
+    pio_sm_put_blocking(pio1, SUBQ_SM, sub1);
+    pio_sm_put_blocking(pio1, SUBQ_SM, sub2);
+    pio_sm_put_blocking(pio1, SUBQ_SM, sub3);
 	
     pio_sm_put_blocking(pio1, SCOR_SM, 1);
 

@@ -181,7 +181,7 @@ void i2s_data_thread() {
         sector_t = sector;
         if (mutex_try_enter(&mechacon_mutex,0)) {
             while(!pio_sm_is_rx_fifo_empty(pio1, MECHACON_SM)) {
-                uint c = reverseBits(pio_sm_get_blocking(pio1, MECHACON_SM),8);
+                uint c = pio_sm_get_blocking(pio1, MECHACON_SM) >> 24;
                 latched >>= 8;
                 latched |= c << 16;
             }
