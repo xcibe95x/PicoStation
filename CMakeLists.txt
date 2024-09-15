@@ -16,7 +16,7 @@ pico_enable_stdio_usb(picostation 1)
 
 pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/main.pio)
 
-target_link_libraries(picostation PRIVATE pico_stdlib hardware_pio hardware_dma FatFs_SPI pico_multicore)
+target_link_libraries(picostation PRIVATE pico_stdlib hardware_pio hardware_pwm hardware_dma FatFs_SPI pico_multicore)
 
 pico_set_binary_type(picostation copy_to_ram)
 

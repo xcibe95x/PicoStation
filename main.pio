@@ -146,7 +146,7 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
 
 .wrap_target
     set x, 7
-    pull noblock
+    ;pull noblock
     loop:    
     out pins, 1
     set pins, 0 [14]
@@ -158,21 +158,56 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
     set pins, 0 [14]
     set pins, 1 [15]
     jmp x-- loop
+    out null, 8
     nop [4]
     irq 0 
 .wrap
+
+/*.wrap_target
+    set x, 23
+    pull noblock
+    loop:
+    wait 0 pin 0
+    wait 1 pin 0
+    out pins, 1
+    jmp x-- loop
+    ;out null, 8
+.wrap*/
+
     
 % c-sdk {
 static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t data_clock_pin) {
     pio_gpio_init(pio, data_clock_pin);
     pio_gpio_init(pio, data_clock_pin+1);
     pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin, 2, true);
-    
+  
     pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
     sm_config_set_set_pins(&sm_config, data_clock_pin, 1);
     sm_config_set_out_pins(&sm_config, data_clock_pin+1, 1);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    sm_config_set_out_shift(&sm_config, true, true, 32);
     sm_config_set_clkdiv(&sm_config, 2);
+    
+    /*pio_gpio_init(pio, 16); // 16
+
+    pio_sm_set_consecutive_pindirs(pio, sm, 15, 1, false); // DA15 bitclock input
+    pio_sm_set_consecutive_pindirs(pio, sm, 16, 1, true);  // DA16 output
+    
+    pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&sm_config, 15);
+    sm_config_set_out_pins(&sm_config, 16, 1);
+    
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    sm_config_set_out_shift(&sm_config, true, false, 32);
+    //sm_config_set_out_shift(&sm_config, false, true, 24);
+    
+    //sm_config_set_clkdiv(&sm_config, 2);
+    hw_set_bits(&pio->input_sync_bypass, 1u << 15);
+    hw_set_bits(&pio->input_sync_bypass, 1u << 17);*/
+
+
+
     
     pio_sm_init(pio, sm, offset, &sm_config);
 }

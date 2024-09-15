@@ -16,6 +16,9 @@
 #include "cmd.h"
 #include "i2s.h"
 
+#define TARGET_BIN  "STREET MUSIC.bin"
+#define TARGET_CUE  "STREET MUSIC.cue"
+
 extern volatile int sector;
 extern volatile uint latched;
 extern volatile int num_logical_tracks;
@@ -95,7 +98,8 @@ void i2s_data_thread() {
     pSD = sd_get_by_num(0);
     fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
     if (FR_OK != fr) panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-    fr = f_open(&fil, "UNIROM.cue", FA_READ);
+    fr = f_open(&fil, TARGET_CUE, FA_READ);
+    //fr = f_open(&fil, "STREET MUSIC.cue", FA_READ);
     if (FR_OK != fr && FR_EXIST != fr)
         panic("f_open(%s) error: (%d)\n", FRESULT_str(fr), fr);
 
@@ -154,7 +158,8 @@ void i2s_data_thread() {
     }
 
     f_close(&fil);
-    fr = f_open(&fil, "UNIROM.bin", FA_READ);
+    fr = f_open(&fil, TARGET_BIN, FA_READ);
+    //fr = f_open(&fil, "STREET MUSIC.bin", FA_READ);
     if (FR_OK != fr && FR_EXIST != fr)
         panic("f_open(%s) error: (%d)\n", FRESULT_str(fr), fr);
 
@@ -272,8 +277,10 @@ abort_psnee:
                     uint32_t i2s_data;
                     if (is_data_track[current_logical_track]) {
                         i2s_data = reverseBits(cd_samples[cacheHit][i]^CD_scrambling_key[i], 16) << 8;
+                        //i2s_data = cd_samples[cacheHit][i]^CD_scrambling_key[i];
                     } else {
                         i2s_data = reverseBits(cd_samples[cacheHit][i], 16) << 8;
+                        //i2s_data = cd_samples[cacheHit][i];
                     }
 
                     if (i2s_data & 0x100) {
