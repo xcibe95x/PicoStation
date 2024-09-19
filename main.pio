@@ -168,14 +168,9 @@ static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, ui
     pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
     sm_config_set_in_pins(&sm_config, 15);
     sm_config_set_out_pins(&sm_config, 16, 1);
-    sm_config_set_set_pins(&sm_config, 16, 1);   
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
     sm_config_set_out_shift(&sm_config, false, true, 24);
     hw_set_bits(&pio->input_sync_bypass, 1u << 15);
-    hw_set_bits(&pio->input_sync_bypass, 1u << 17);
-
-
-
     
     pio_sm_init(pio, sm, offset, &sm_config);
 }

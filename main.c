@@ -121,6 +121,7 @@ void initialize()
     //uint offset3 = pio_add_program(pio0, &cpu_clk_program);
     //cpu_clk_program_init(pio0, CPU_CLK_SM, offset3, CLK);
 
+    gpio_set_function(DA15, GPIO_FUNC_PWM);
     slice_num_DA15 = pwm_gpio_to_slice_num(DA15);
     cfg_DA15 = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_DA15, PWM_DIV_FREE_RUNNING);
@@ -223,6 +224,7 @@ int main()
 
         if (prevMode == 1 && mode == 2)
         {
+            pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 1);
             pio_sm_set_clkdiv(pio1, SCOR_SM, 1);
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
             pwm_config_set_clkdiv_int(&cfg_DA15, 1);
