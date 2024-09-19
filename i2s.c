@@ -32,6 +32,7 @@ extern volatile bool hasData;
 extern int *logical_track_to_sector;
 extern bool *is_data_track;
 extern mutex_t mechacon_mutex;
+extern bool core1_ready;
 
 void select_sens(uint8_t new_sens);
 void set_sens(uint8_t what, bool new_value);
@@ -195,6 +196,8 @@ void i2s_data_thread()
     channel_config_set_dreq(&c, DREQ_PIO0_TX0);
     dma_channel_configure(channel, &c, &pio0->txf[I2S_DATA_SM], pio_samples[0], CD_SAMPLES * 2, false);
 
+    core1_ready = true;
+    
     while (true)
     {
         sector_t = sector;

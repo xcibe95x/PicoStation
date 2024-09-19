@@ -11,6 +11,7 @@
 #include "pico/multicore.h"
 #include "hardware/pll.h"
 #include "hardware/pwm.h"
+#include "hardware/vreg.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/pll.h"
 #include "hardware/structs/clocks.h"
@@ -44,6 +45,7 @@ int *logical_track_to_sector;
 bool *is_data_track;
 volatile int current_logical_track = 0;
 volatile int mode = 1;
+volatile bool core1_ready = false;
 
 pwm_config cfg_CLOCK;
 pwm_config cfg_LRCK;
@@ -198,13 +200,27 @@ void initialize()
 
 int main()
 {
+    vreg_set_voltage(VREG_VOLTAGE_1_15);
+    sleep_ms(100);
+
+    set_sys_clock_khz(271200, true);
+    sleep_ms(5);
+
     stdio_init_all();
-    sleep_ms(500);    
+
+    stdio_set_chars_available_callback(NULL, NULL);
+    sleep_ms(2500);
+    printf("Initializing...\n");
     initialize();
     int prevMode = 1;
     int sectors_per_track_i = sectors_per_track(0);
     bool subq_delay = 0;
     uint64_t subq_delay_time = 0;
+
+    while(!core1_ready)
+    {
+        sleep_ms(1);
+    }
 
     while (true)
     {
@@ -224,8 +240,8 @@ int main()
 
         if (prevMode == 1 && mode == 2)
         {
-            pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 1);
-            pio_sm_set_clkdiv(pio1, SCOR_SM, 1);
+            //pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 1);
+            //pio_sm_set_clkdiv(pio1, SCOR_SM, 1);
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
             pwm_config_set_clkdiv_int(&cfg_DA15, 1);
             pwm_config_set_clkdiv_int(&cfg_LRCK, 1);
@@ -237,8 +253,8 @@ int main()
         }
         else if (prevMode == 2 && mode == 1)
         {
-            pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 2);
-            pio_sm_set_clkdiv(pio1, SCOR_SM, 2);
+            //pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 2);
+            //pio_sm_set_clkdiv(pio1, SCOR_SM, 2);
             
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
             pwm_config_set_clkdiv_int(&cfg_DA15, 2);
