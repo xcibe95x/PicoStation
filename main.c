@@ -79,7 +79,6 @@ void set_sens(uint8_t what, bool new_value)
 
 void initialize()
 {
-    set_sys_clock_pll(948000000, 7, 1); // 135428571 Hz, 67714286 Hz PS1 clock
     srand(time(NULL));
     mutex_init(&mechacon_mutex);
 
@@ -117,33 +116,28 @@ void initialize()
     cfg_CLOCK = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_CLOCK, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_CLOCK, 1);
-    pwm_config_set_clkdiv_int(&cfg_CLOCK, 1);
+    pwm_config_set_clkdiv_int(&cfg_CLOCK, 2);
     pwm_init(slice_num_CLOCK, &cfg_CLOCK, false);
     pwm_set_both_levels(slice_num_CLOCK, 1, 1);
-    //uint offset3 = pio_add_program(pio0, &cpu_clk_program);
-    //cpu_clk_program_init(pio0, CPU_CLK_SM, offset3, CLK);
 
     gpio_set_function(DA15, GPIO_FUNC_PWM);
     slice_num_DA15 = pwm_gpio_to_slice_num(DA15);
     cfg_DA15 = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_DA15, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_DA15, (1 * 32) - 1);
-    pwm_config_set_clkdiv_int(&cfg_DA15, 2);
+    pwm_config_set_clkdiv_int(&cfg_DA15, 4);
     pwm_config_set_output_polarity(&cfg_DA15, true, true);
     pwm_init(slice_num_DA15, &cfg_DA15, false);
     pwm_set_both_levels(slice_num_DA15, 16, 16);
 
-    gpio_set_function(LRCK, GPIO_FUNC_PWM);    
+    gpio_set_function(LRCK, GPIO_FUNC_PWM);
     slice_num_LRCK = pwm_gpio_to_slice_num(LRCK);
-    cfg_LRCK = pwm_get_default_config(); 
+    cfg_LRCK = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_LRCK, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_LRCK, (48 * 32) - 1);
-    pwm_config_set_clkdiv_int(&cfg_LRCK, 2);
-    pwm_init(slice_num_LRCK, &cfg_LRCK, false); 
+    pwm_config_set_clkdiv_int(&cfg_LRCK, 4);
+    pwm_init(slice_num_LRCK, &cfg_LRCK, false);
     pwm_set_both_levels(slice_num_LRCK, (48 * 16), (48 * 16));
-    //uint offset2 = pio_add_program(pio0, &i2s_lrck_program);
-    //i2s_lrck_program_init(pio0, LRCK_DATA_SM, offset2, LRCK);
-    
 
     gpio_put(SQSO, 0);
     gpio_put(SCOR, 0);
@@ -217,7 +211,7 @@ int main()
     bool subq_delay = 0;
     uint64_t subq_delay_time = 0;
 
-    while(!core1_ready)
+    while (!core1_ready)
     {
         sleep_ms(1);
     }
@@ -240,11 +234,9 @@ int main()
 
         if (prevMode == 1 && mode == 2)
         {
-            //pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 1);
-            //pio_sm_set_clkdiv(pio1, SCOR_SM, 1);
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
-            pwm_config_set_clkdiv_int(&cfg_DA15, 1);
-            pwm_config_set_clkdiv_int(&cfg_LRCK, 1);
+            pwm_config_set_clkdiv_int(&cfg_DA15, 2);
+            pwm_config_set_clkdiv_int(&cfg_LRCK, 2);
             pwm_hw->slice[slice_num_DA15].div = cfg_DA15.div;
             pwm_hw->slice[slice_num_LRCK].div = cfg_LRCK.div;
             pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
@@ -253,12 +245,9 @@ int main()
         }
         else if (prevMode == 2 && mode == 1)
         {
-            //pio_sm_set_clkdiv(pio0, I2S_DATA_SM, 2);
-            //pio_sm_set_clkdiv(pio1, SCOR_SM, 2);
-            
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
-            pwm_config_set_clkdiv_int(&cfg_DA15, 2);
-            pwm_config_set_clkdiv_int(&cfg_LRCK, 2);
+            pwm_config_set_clkdiv_int(&cfg_DA15, 4);
+            pwm_config_set_clkdiv_int(&cfg_LRCK, 4);
             pwm_hw->slice[slice_num_DA15].div = cfg_DA15.div;
             pwm_hw->slice[slice_num_LRCK].div = cfg_LRCK.div;
             pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
