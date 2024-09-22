@@ -253,7 +253,7 @@ int main()
         // Speed change
         if (prevMode == 1 && mode == 2)
         {
-            pwm_set_mask_enabled((1 << slice_num_CLOCK));
+            pwm_set_mask_enabled(0);
             pwm_config_set_clkdiv_int(&cfg_DA15, 2);
             pwm_config_set_clkdiv_int(&cfg_LRCK, 2);
             pwm_hw->slice[slice_num_DA15].div = cfg_DA15.div;
@@ -264,7 +264,7 @@ int main()
         }
         else if (prevMode == 2 && mode == 1)
         {
-            pwm_set_mask_enabled((1 << slice_num_CLOCK));
+            pwm_set_mask_enabled(0);
             pwm_config_set_clkdiv_int(&cfg_DA15, 4);
             pwm_config_set_clkdiv_int(&cfg_LRCK, 4);
             pwm_hw->slice[slice_num_DA15].div = cfg_DA15.div;
