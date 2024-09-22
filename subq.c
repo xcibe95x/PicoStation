@@ -23,9 +23,17 @@ extern int *logical_track_to_sector;
 
 uint8_t tracksubq[12];
 
+#define DEBUG_SUBQ
+
+#ifdef DEBUG_SUBQ
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while(0)
+#endif
+
 void printf_subq(uint8_t *subqdata) {
     for (int i=0; i<12; i++) {
-        printf("%02X ", subqdata[i]);
+        DEBUG_PRINT("%02X ", subqdata[i]);
     }
 }
 
@@ -149,7 +157,7 @@ void start_subq() {
         tracksubq[11] = ((sector % 2) == 0) ? 0x00 : 0x80;
         if (sector % (50+num_logical_tracks) == 0) {
             printf_subq(tracksubq);
-            printf("%d\n",sector);
+            DEBUG_PRINT("%d\n",sector);
         }
 
         send_subq(tracksubq);

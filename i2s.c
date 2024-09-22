@@ -16,10 +16,21 @@
 #include "cmd.h"
 #include "i2s.h"
 
+#define DEBUG_I2S
+
+#ifdef DEBUG_I2S
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while(0)
+#endif
+
+//#define TARGET_BIN "STREET MUSIC.bin"
+//#define TARGET_CUE "STREET MUSIC.cue"
 // #define TARGET_BIN  "UNIROM_BOOTDISC_8.0.K.bin"
 // #define TARGET_CUE  "UNIROM_BOOTDISC_8.0.K.cue"
 #define TARGET_BIN "UNIROM.bin"
 #define TARGET_CUE "UNIROM.cue"
+
 
 extern volatile int sector;
 extern volatile uint latched;
@@ -32,7 +43,7 @@ extern volatile bool hasData;
 extern int *logical_track_to_sector;
 extern bool *is_data_track;
 extern mutex_t mechacon_mutex;
-extern bool core1_ready;
+extern volatile bool core_ready[2];
 
 void select_sens(uint8_t new_sens);
 void set_sens(uint8_t what, bool new_value);
@@ -79,7 +90,7 @@ void i2s_data_thread()
         {
             while (true)
             {
-                printf("not enough memory for cache!\n");
+                DEBUG_PRINT("not enough memory for cache!\n");
             }
         }
     }
@@ -129,7 +140,7 @@ void i2s_data_thread()
     }
 
     f_rewind(&fil);
-    printf("num_logical_tracks: %d\n", num_logical_tracks);
+    DEBUG_PRINT("num_logical_tracks: %d\n", num_logical_tracks);
 
     logical_track_to_sector = malloc(sizeof(int) * (num_logical_tracks + 2));
     is_data_track = malloc(sizeof(bool) * (num_logical_tracks + 2));
@@ -171,7 +182,7 @@ void i2s_data_thread()
         {
             logical_track_to_sector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
         }
-        printf("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
+        DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
     }
 
     f_close(&fil);
@@ -185,7 +196,7 @@ void i2s_data_thread()
 
     for (int i = 0; i < num_logical_tracks + 2; i++)
     {
-        printf("sector_t: %d data: %d\n", logical_track_to_sector[i], is_data_track[i]);
+        DEBUG_PRINT("sector_t: %d data: %d\n", logical_track_to_sector[i], is_data_track[i]);
     }
 
     int channel = dma_claim_unused_channel(true);
@@ -196,7 +207,12 @@ void i2s_data_thread()
     channel_config_set_dreq(&c, DREQ_PIO0_TX0);
     dma_channel_configure(channel, &c, &pio0->txf[I2S_DATA_SM], pio_samples[0], CD_SAMPLES * 2, false);
 
-    core1_ready = true;
+    core_ready[1] = true;
+
+    while (!core_ready[0])
+    {
+        sleep_ms(1);
+    }
     
     while (true)
     {
@@ -214,6 +230,7 @@ void i2s_data_thread()
             mutex_exit(&mechacon_mutex);
         }
 
+        // PSNEE
         if (sector_t > 0 && sector_t < PSNEE_SECTOR_LIMIT &&
             SENS_data[SENS_GFS] && !soct && hasData &&
             ((time_us_64() - psneeTimer) > 13333))
@@ -225,7 +242,7 @@ void i2s_data_thread()
         if (psnee_hysteresis > 100)
         {
             psnee_hysteresis = 0;
-            printf("+SCEX\n");
+            DEBUG_PRINT("+SCEX\n");
             gpio_put(SCEX_DATA, 0);
             psneeTimer = time_us_64();
             while ((time_us_64() - psneeTimer) < 90000)
@@ -263,8 +280,9 @@ void i2s_data_thread()
         abort_psnee:
             gpio_put(SCEX_DATA, 0);
             psneeTimer = time_us_64();
-            printf("-SCEX\n");
+            DEBUG_PRINT("-SCEX\n");
         }
+        // PSNEE
 
         if (buffer_for_dma != buffer_for_sd_read)
         {

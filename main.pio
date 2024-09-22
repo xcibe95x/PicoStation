@@ -1,21 +1,3 @@
-.program cpu_clk
-
-.wrap_target
-    set pins 0
-    set pins 1
-.wrap
-% c-sdk {
-
-static inline void cpu_clk_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t cpu_clk_pin) {
-    pio_gpio_init(pio, cpu_clk_pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, cpu_clk_pin, 1, true);
-    pio_sm_config sm_config = cpu_clk_program_get_default_config(offset);
-    sm_config_set_set_pins(&sm_config, cpu_clk_pin, 1);
-    pio_sm_init(pio, sm, offset, &sm_config);
-}
-
-%}
-
 .program scor
 
 .wrap_target
@@ -163,8 +145,8 @@ static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, ui
     sm_config_set_clkdiv(&sm_config, 2);*/
     
     pio_gpio_init(pio, 16); // DA16
-    pio_sm_set_consecutive_pindirs(pio, sm, 15, 1, false); // DA15 bitclock input
-    pio_sm_set_consecutive_pindirs(pio, sm, 16, 1, true);  // DA16 output   
+    pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin, 1, false);   // DA15 bitclock input
+    pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin+1, 1, true);  // DA16 output   
     pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
     sm_config_set_in_pins(&sm_config, 15);
     sm_config_set_out_pins(&sm_config, 16, 1);
@@ -175,25 +157,4 @@ static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, ui
     pio_sm_init(pio, sm, offset, &sm_config);
 }
 
-%}
-
-.program i2s_lrck
-
-start:
-    set pins 1 
-    wait 1 irq 0
-    set pins 0 
-    wait 1 irq 0
-    jmp start
-% c-sdk {
-
-static inline void i2s_lrck_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t lrck_pin) {
-    pio_gpio_init(pio, lrck_pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, lrck_pin, 1, true);
-    
-    pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
-    sm_config_set_set_pins(&sm_config, lrck_pin, 1);
-
-    pio_sm_init(pio, sm, offset, &sm_config);
-}
 %}

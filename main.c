@@ -39,13 +39,16 @@ volatile uint sector_sending = -1;
 volatile uint sector_for_track_update = 0;
 volatile uint64_t subq_start_time = 0;
 volatile uint64_t sled_timer = 0;
+volatile uint64_t autoseq_timer = 0;
+volatile uint64_t autoseq_direction = SLED_MOVE_STOP;
+volatile uint autoseq_track = 0;
 volatile uint8_t current_sens;
 volatile int num_logical_tracks = 0;
 int *logical_track_to_sector;
 bool *is_data_track;
 volatile int current_logical_track = 0;
 volatile int mode = 1;
-volatile bool core1_ready = false;
+volatile bool core_ready[2] = {false, false};
 
 pwm_config cfg_CLOCK;
 pwm_config cfg_LRCK;
@@ -54,14 +57,24 @@ uint slice_num_CLOCK;
 uint slice_num_DA15;
 uint slice_num_LRCK;
 
-bool SENS_data[16] = {
-    0, 0, 0, 0, 0,
-    1, // FOK
-    0, 0, 0, 0,
-    0, // GFS
-    0, // COMP
-    0, // COUT
-    0, 0, 0};
+volatile bool SENS_data[16] = {
+    0, // $0X - FZC
+    0, // $1X - AS
+    0, // $2X - TZC
+    0, // $3X - Misc.
+    0, // $4X - XBUSY
+    1, // $5X - FOK
+    0, // $6X - 0
+    0, // $7X - 0
+    0, // $8X - 0
+    0, // $9X - 0
+    1, // $AX - GFS
+    0, // $BX - COMP
+    0, // $CX - COUT
+    0, // $DX - 0
+    0, // $EX - OV64
+    0  // $FX - 0
+};
 
 void select_sens(uint8_t new_sens)
 {
@@ -162,7 +175,7 @@ void initialize()
 
     uint64_t startTime = time_us_64();
 
-    pio_enable_sm_mask_in_sync(pio0, /*(1u << CPU_CLK_SM) | (1u << LRCK_DATA_SM) |*/ (1u << I2S_DATA_SM));
+    pio_enable_sm_mask_in_sync(pio0, (1u << I2S_DATA_SM));
     pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
 
     gpio_set_dir(RESET, GPIO_OUT);
@@ -211,14 +224,19 @@ int main()
     bool subq_delay = 0;
     uint64_t subq_delay_time = 0;
 
-    while (!core1_ready)
+    core_ready[0] = true;
+
+    while (!core_ready[1])
     {
         sleep_ms(1);
     }
 
     while (true)
     {
+        // Limit Switch
         gpio_put(LMTSW, sector > 3000);
+
+        // Mechacon + SENS
         if (mutex_try_enter(&mechacon_mutex, 0))
         {
             while (!pio_sm_is_rx_fifo_empty(pio1, MECHACON_SM))
@@ -232,6 +250,7 @@ int main()
             mutex_exit(&mechacon_mutex);
         }
 
+        // Speed change
         if (prevMode == 1 && mode == 2)
         {
             pwm_set_mask_enabled((1 << slice_num_CLOCK));
@@ -255,6 +274,7 @@ int main()
             printf("x1\n");
         }
 
+        // Track limits
         if (track < 0 || sector < 0)
         {
             track = 0;
@@ -269,6 +289,7 @@ int main()
             sector_for_track_update = sector;
         }
 
+        // Reset
         if (gpio_get(RESET) == 0)
         {
             printf("RESET!\n");
@@ -303,6 +324,7 @@ int main()
             pio_sm_set_enabled(pio1, MECHACON_SM, true);
         }
 
+        // Soct/Sled/seek/autoseq
         if (soct)
         {
             uint interrupts = save_and_disable_interrupts();
@@ -342,6 +364,32 @@ int main()
                     original_track = track;
                     set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
                 }
+            }
+        }
+        else if (autoseq_direction == SLED_MOVE_FORWARD)
+        {
+            if ((time_us_64() - autoseq_timer) >= (TRACK_MOVE_TIME_US * (autoseq_track - track)))
+            {
+                autoseq_timer = time_us_64();
+                track = autoseq_track;
+                sector = track_to_sector(track);
+                sector_for_track_update = sector;
+                autoseq_direction = SLED_MOVE_STOP;
+                set_sens(SENS_AUTOSEQ, 0);
+                set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
+            }
+        }
+        else if (autoseq_direction == SLED_MOVE_REVERSE)
+        {
+            if ((time_us_64() - autoseq_timer) >= (TRACK_MOVE_TIME_US * (track - autoseq_track)))
+            {
+                autoseq_timer = time_us_64();
+                track = autoseq_track;
+                sector = track_to_sector(track);
+                sector_for_track_update = sector;
+                autoseq_direction = SLED_MOVE_STOP;
+                set_sens(SENS_AUTOSEQ, 0);
+                set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
             }
         }
         else if (SENS_data[SENS_GFS])
