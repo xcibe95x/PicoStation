@@ -115,7 +115,7 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
     pio_sm_set_consecutive_pindirs(pio, sm, sqck_pin, 1, false);
     
     pio_sm_config sm_config = subq_program_get_default_config(offset);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_out_shift(&sm_config, true, false, 32);
     sm_config_set_out_pins(&sm_config, sqso_pin, 1);
     sm_config_set_set_pins(&sm_config, sqso_pin, 1);
     sm_config_set_in_pins(&sm_config, sqck_pin);
