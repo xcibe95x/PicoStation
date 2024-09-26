@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "values.h": "c",
-        "utils.h": "c",
-        "f_util.h": "c",
-        "cmd.h": "c"
-    }
-}
