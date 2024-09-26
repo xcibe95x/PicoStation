@@ -22,21 +22,16 @@ extern volatile uint autoseq_track;
 extern volatile uint autoseq_direction;
 extern volatile uint latched;
 extern volatile uint count_track;
-extern volatile uint soct_offset;
-extern volatile uint subq_offset;
-extern volatile bool soct;
 extern volatile uint sled_move_direction;
 extern volatile uint track;
 extern volatile uint original_track;
 extern volatile uint sector;
 extern volatile uint sector_for_track_update;
-extern volatile int subq_start;
 extern volatile int mode;
 extern volatile bool SENS_data[16];
 extern volatile uint64_t autoseq_timer;
 
 volatile uint jump_track = 0;
-volatile uint m_track = 0;
 
 void autosequence()
 {
