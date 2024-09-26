@@ -1,6 +1,3 @@
-#include <math.h>
-#include "pico/stdlib.h"
-
 #include "utils.h"
 
 extern inline int tobcd(int in);

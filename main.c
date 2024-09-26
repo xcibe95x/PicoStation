@@ -1,26 +1,26 @@
 #include <stdio.h>
-#include <time.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
-#include "pico/stdlib.h"
-#include "main.pio.h"
-#include "pico/multicore.h"
 #include "hardware/pll.h"
 #include "hardware/pwm.h"
-#include "hardware/vreg.h"
-#include "hardware/clocks.h"
-#include "hardware/structs/pll.h"
 #include "hardware/structs/clocks.h"
+#include "hardware/structs/pll.h"
+#include "hardware/vreg.h"
+#include "pico/multicore.h"
+#include "pico/stdlib.h"
 
-#include "utils.h"
-#include "values.h"
-#include "subq.h"
 #include "cmd.h"
 #include "i2s.h"
+#include "main.pio.h"
+#include "subq.h"
+#include "utils.h"
+#include "values.h"
 
 // globals
 mutex_t mechacon_mutex;

@@ -1,7 +1,7 @@
 #ifndef UTILS_H_INCLUDED
 #define UTILS_H_INCLUDED
+
 #include <math.h>
-#include "stdlib.h"
 
 inline int tobcd(int in)
 {

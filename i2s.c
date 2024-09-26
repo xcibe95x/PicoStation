@@ -1,20 +1,23 @@
+#include "i2s.h"
+
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "main.pio.h"
 
+#include "cmd.h"
 #include "f_util.h"
 #include "ff.h"
-#include "rtc.h"
 #include "hw_config.h"
+#include "rtc.h"
+#include "subq.h"
 #include "utils.h"
 #include "values.h"
-#include "subq.h"
-#include "cmd.h"
-#include "i2s.h"
 
 #define DEBUG_I2S
 

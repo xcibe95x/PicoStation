@@ -1,12 +1,14 @@
+#include "subq.h"
+
 #include <stdio.h>
-#include "hardware/gpio.h"
+#include <stdint.h>
+
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
-#include "main.pio.h"
 
+#include "main.pio.h"
 #include "utils.h"
 #include "values.h"
-#include "subq.h"
 
 extern volatile uint subq_offset;
 extern volatile uint subq_offset;
