@@ -6,13 +6,12 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
+#include "logging.h"
 #include "main.pio.h"
 #include "utils.h"
 #include "values.h"
 
-// #define DEBUG_CMD
-
-#ifdef DEBUG_CMD
+#if DEBUG_CMD
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)

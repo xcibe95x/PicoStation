@@ -6,9 +6,16 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
+#include "logging.h"
 #include "main.pio.h"
 #include "utils.h"
 #include "values.h"
+
+#if DEBUG_SUBQ
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while (0)
+#endif
 
 extern volatile uint subq_offset;
 extern volatile int current_logical_track;
@@ -19,14 +26,6 @@ extern bool *is_data_track;
 extern int *logical_track_to_sector;
 
 uint8_t tracksubq[12];
-
-#define DEBUG_SUBQ
-
-#ifdef DEBUG_SUBQ
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
-#else
-#define DEBUG_PRINT(...) while (0)
-#endif
 
 void printf_subq(uint8_t *subqdata)
 {

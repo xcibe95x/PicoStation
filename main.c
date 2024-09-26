@@ -17,6 +17,7 @@
 
 #include "cmd.h"
 #include "i2s.h"
+#include "logging.h"
 #include "main.pio.h"
 #include "subq.h"
 #include "utils.h"
@@ -213,7 +214,9 @@ int main()
     set_sys_clock_khz(271200, true);
     sleep_ms(5);
 
+#if DEBUG_LOGGING_ENABLED
     stdio_init_all();
+#endif
 
     stdio_set_chars_available_callback(NULL, NULL);
     sleep_ms(2500);

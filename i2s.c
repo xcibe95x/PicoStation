@@ -14,14 +14,13 @@
 #include "f_util.h"
 #include "ff.h"
 #include "hw_config.h"
+#include "logging.h"
 #include "rtc.h"
 #include "subq.h"
 #include "utils.h"
 #include "values.h"
 
-#define DEBUG_I2S
-
-#ifdef DEBUG_I2S
+#if DEBUG_I2S == 1
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)
