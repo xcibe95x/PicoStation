@@ -7,12 +7,12 @@
 #include "values.h"
 #include "cmd.h"
 
-//#define DEBUG_CMD
+// #define DEBUG_CMD
 
 #ifdef DEBUG_CMD
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
-#define DEBUG_PRINT(...) while(0)
+#define DEBUG_PRINT(...) while (0)
 #endif
 
 extern volatile uint autoseq_track;
@@ -49,16 +49,16 @@ void autosequence()
         switch (timer_range)
         {
         case 0:
-            //cancel_timer_value = 1000;
+            // cancel_timer_value = 1000;
             break;
 
         case 1:
-            //cancel_timer_value = 11000;
+            // cancel_timer_value = 11000;
             break;
         }
         autoseq_direction = SLED_MOVE_STOP;
         autoseq_timer = 0;
-        //DEBUG_PRINT("Cancel timer_range: %d cancel_timer: %d\n", timer_range, cancel_timer);
+        // DEBUG_PRINT("Cancel timer_range: %d cancel_timer: %d\n", timer_range, cancel_timer);
         return;
 
     case 0x4: // Fine search - forward

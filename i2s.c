@@ -21,16 +21,15 @@
 #ifdef DEBUG_I2S
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
-#define DEBUG_PRINT(...) while(0)
+#define DEBUG_PRINT(...) while (0)
 #endif
 
-//#define TARGET_BIN "STREET MUSIC.bin"
-//#define TARGET_CUE "STREET MUSIC.cue"
-// #define TARGET_BIN  "UNIROM_BOOTDISC_8.0.K.bin"
-// #define TARGET_CUE  "UNIROM_BOOTDISC_8.0.K.cue"
+// #define TARGET_BIN "STREET MUSIC.bin"
+// #define TARGET_CUE "STREET MUSIC.cue"
+//  #define TARGET_BIN  "UNIROM_BOOTDISC_8.0.K.bin"
+//  #define TARGET_CUE  "UNIROM_BOOTDISC_8.0.K.cue"
 #define TARGET_BIN "UNIROM.bin"
 #define TARGET_CUE "UNIROM.cue"
-
 
 extern volatile int sector;
 extern volatile uint latched;
@@ -213,7 +212,7 @@ void i2s_data_thread()
     {
         sleep_ms(1);
     }
-    
+
     while (true)
     {
         sector_t = sector;
