@@ -23,6 +23,12 @@
 #include "utils.h"
 #include "values.h"
 
+#if DEBUG_MISC
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while (0)
+#endif
+
 // globals
 mutex_t mechacon_mutex;
 volatile uint latched = 0;
@@ -200,7 +206,7 @@ void initialize()
         }
     }
 
-    printf("ON!\n");
+    DEBUG_PRINT("ON!\n");
     multicore_launch_core1(i2s_data_thread);
     gpio_set_irq_enabled_with_callback(XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_enable_sm_mask_in_sync(pio1, (1u << SCOR_SM) | (1u << MECHACON_SM));
@@ -220,7 +226,7 @@ int main()
 
     stdio_set_chars_available_callback(NULL, NULL);
     sleep_ms(2500);
-    printf("Initializing...\n");
+    DEBUG_PRINT("Initializing...\n");
     initialize();
     int prevMode = 1;
     int sectors_per_track_i = sectors_per_track(0);
@@ -263,7 +269,7 @@ int main()
             pwm_hw->slice[slice_num_LRCK].div = cfg_LRCK.div;
             pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
             prevMode = 2;
-            printf("x2\n");
+            DEBUG_PRINT("x2\n");
         }
         else if (prevMode == 2 && mode == 1)
         {
@@ -274,7 +280,7 @@ int main()
             pwm_hw->slice[slice_num_LRCK].div = cfg_LRCK.div;
             pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
             prevMode = 1;
-            printf("x1\n");
+            DEBUG_PRINT("x1\n");
         }
 
         // Track limits
@@ -295,7 +301,7 @@ int main()
         // Reset
         if (gpio_get(RESET) == 0)
         {
-            printf("RESET!\n");
+            DEBUG_PRINT("RESET!\n");
             pio_sm_set_enabled(pio1, SUBQ_SM, false);
             pio_sm_set_enabled(pio1, SOCT_SM, false);
             mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, CMD_DATA);

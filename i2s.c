@@ -20,7 +20,7 @@
 #include "utils.h"
 #include "values.h"
 
-#if DEBUG_I2S == 1
+#if DEBUG_I2S
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)

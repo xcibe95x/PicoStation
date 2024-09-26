@@ -214,7 +214,7 @@ void interrupt_xlat(uint gpio, uint32_t events)
         command == CMD_JUMP_TRACK || command == CMD_SPEED ||
         command == CMD_COUNT_TRACK || command == CMD_SPINDLE
     ) {
-        printf("%06X\n", latched);
+        DEBUG_PRINT("%06X\n", latched);
     }
     */
 
