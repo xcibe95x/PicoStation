@@ -46,8 +46,16 @@ extern bool *is_data_track;
 extern mutex_t mechacon_mutex;
 extern volatile bool core_ready[2];
 
+int sector_t = -1;
+uint64_t psneeTimer;
+int psnee_hysteresis = 0;
+
+void psnee();
+
+// External functions, in main.c
 void select_sens(uint8_t new_sens);
 void set_sens(uint8_t what, bool new_value);
+void updateMechSens();
 
 char SCExData[][44] = {
     {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
@@ -58,14 +66,12 @@ char SCExData[][44] = {
 void i2s_data_thread()
 {
     // TODO: separate PSNEE, cue parse, and i2s functions
-    int sector_t = -1;
     int bytesRead;
     uint32_t *pio_samples[2];
-    uint64_t psneeTimer = time_us_64();
+    psneeTimer = time_us_64();
     uint64_t sector_change_timer = 0;
     int buffer_for_dma = 1;
     int buffer_for_sd_read = 0;
-    int psnee_hysteresis = 0;
     int cachedSectors[SECTOR_CACHE] = {-1};
     int sector_loaded[2] = {-1};
     int roundRobinCacheIndex = 0;
@@ -218,72 +224,16 @@ void i2s_data_thread()
     while (true)
     {
         sector_t = sector;
+
+        // Update latching, output SENS
         if (mutex_try_enter(&mechacon_mutex, 0))
         {
-            while (!pio_sm_is_rx_fifo_empty(pio1, MECHACON_SM))
-            {
-                uint c = pio_sm_get_blocking(pio1, MECHACON_SM) >> 24;
-                latched >>= 8;
-                latched |= c << 16;
-            }
-            select_sens(latched >> 20);
-            gpio_put(SENS, SENS_data[latched >> 20]);
+            updateMechSens();
             mutex_exit(&mechacon_mutex);
         }
 
         // PSNEE
-        if (sector_t > 0 && sector_t < PSNEE_SECTOR_LIMIT &&
-            SENS_data[SENS_GFS] && !soct && hasData &&
-            ((time_us_64() - psneeTimer) > 13333))
-        {
-            psnee_hysteresis++;
-            psneeTimer = time_us_64();
-        }
-
-        if (psnee_hysteresis > 100)
-        {
-            psnee_hysteresis = 0;
-            DEBUG_PRINT("+SCEX\n");
-            gpio_put(SCEX_DATA, 0);
-            psneeTimer = time_us_64();
-            while ((time_us_64() - psneeTimer) < 90000)
-            {
-                if (sector >= PSNEE_SECTOR_LIMIT || soct)
-                {
-                    goto abort_psnee;
-                }
-            }
-            for (int i = 0; i < 6; i++)
-            {
-                for (int j = 0; j < 44; j++)
-                {
-                    gpio_put(SCEX_DATA, SCExData[i % 3][j]);
-                    psneeTimer = time_us_64();
-                    while ((time_us_64() - psneeTimer) < 4000)
-                    {
-                        if (sector >= PSNEE_SECTOR_LIMIT || soct)
-                        {
-                            goto abort_psnee;
-                        }
-                    }
-                }
-                gpio_put(SCEX_DATA, 0);
-                psneeTimer = time_us_64();
-                while ((time_us_64() - psneeTimer) < 90000)
-                {
-                    if (sector >= PSNEE_SECTOR_LIMIT || soct)
-                    {
-                        goto abort_psnee;
-                    }
-                }
-            }
-
-        abort_psnee:
-            gpio_put(SCEX_DATA, 0);
-            psneeTimer = time_us_64();
-            DEBUG_PRINT("-SCEX\n");
-        }
-        // PSNEE
+        psnee();
 
         if (buffer_for_dma != buffer_for_sd_read)
         {
@@ -377,5 +327,60 @@ void i2s_data_thread()
 
             dma_channel_start(channel);
         }
+    }
+}
+
+void psnee()
+{
+    if (sector_t > 0 && sector_t < PSNEE_SECTOR_LIMIT &&
+        SENS_data[SENS_GFS] && !soct && hasData &&
+        ((time_us_64() - psneeTimer) > 13333))
+    {
+        psnee_hysteresis++;
+        psneeTimer = time_us_64();
+    }
+
+    if (psnee_hysteresis > 100)
+    {
+        psnee_hysteresis = 0;
+        DEBUG_PRINT("+SCEX\n");
+        gpio_put(SCEX_DATA, 0);
+        psneeTimer = time_us_64();
+        while ((time_us_64() - psneeTimer) < 90000)
+        {
+            if (sector >= PSNEE_SECTOR_LIMIT || soct)
+            {
+                goto abort_psnee;
+            }
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            for (int j = 0; j < 44; j++)
+            {
+                gpio_put(SCEX_DATA, SCExData[i % 3][j]);
+                psneeTimer = time_us_64();
+                while ((time_us_64() - psneeTimer) < 4000)
+                {
+                    if (sector >= PSNEE_SECTOR_LIMIT || soct)
+                    {
+                        goto abort_psnee;
+                    }
+                }
+            }
+            gpio_put(SCEX_DATA, 0);
+            psneeTimer = time_us_64();
+            while ((time_us_64() - psneeTimer) < 90000)
+            {
+                if (sector >= PSNEE_SECTOR_LIMIT || soct)
+                {
+                    goto abort_psnee;
+                }
+            }
+        }
+
+    abort_psnee:
+        gpio_put(SCEX_DATA, 0);
+        psneeTimer = time_us_64();
+        DEBUG_PRINT("-SCEX\n");
     }
 }

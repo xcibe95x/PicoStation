@@ -30,6 +30,9 @@ extern volatile int mode;
 extern volatile bool SENS_data[16];
 extern volatile uint64_t autoseq_timer;
 
+extern volatile bool soct;
+extern volatile uint soct_offset;
+
 volatile uint jump_track = 0;
 
 void autosequence()
@@ -43,18 +46,20 @@ void autosequence()
     switch (subcommand)
     {
     case 0x0: // Cancel
-        switch (timer_range)
-        {
-        case 0:
-            // cancel_timer_value = 1000;
-            break;
-
-        case 1:
-            // cancel_timer_value = 11000;
-            break;
-        }
+              /*switch (timer_range)
+              {
+              case 0:
+                  // cancel_timer_value = 1000;
+                  break;
+      
+              case 1:
+                  // cancel_timer_value = 11000;
+                  break;
+              }*/
+        autoseq_track = track;
         autoseq_direction = SLED_MOVE_STOP;
-        autoseq_timer = 0;
+        autoseq_timer = time_us_64();
+        DEBUG_PRINT("Cancel\n");
         // DEBUG_PRINT("Cancel timer_range: %d cancel_timer: %d\n", timer_range, cancel_timer);
         return;
 
