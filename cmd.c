@@ -17,8 +17,6 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern volatile uint autoseq_track;
-extern volatile uint autoseq_direction;
 extern volatile uint latched;
 extern volatile uint count_track;
 extern volatile uint sled_move_direction;
@@ -28,12 +26,13 @@ extern volatile uint sector;
 extern volatile uint sector_for_track_update;
 extern volatile int mode;
 extern volatile bool SENS_data[16];
-extern volatile uint64_t autoseq_timer;
 
 extern volatile bool soct;
 extern volatile uint soct_offset;
 
 volatile uint jump_track = 0;
+
+void set_sens(uint what, bool new_value);
 
 void autosequence()
 {
@@ -41,7 +40,7 @@ void autosequence()
     uint timer_range = (latched & 0x8) >> 3;
     uint cancel_timer = (latched & 0xF) >> 4;
 
-    SENS_data[SENS_AUTOSEQ] = (subcommand != 0);
+    set_sens(SENS_XBUSY, (subcommand != 0));
 
     switch (subcommand)
     {
@@ -56,19 +55,16 @@ void autosequence()
                   // cancel_timer_value = 11000;
                   break;
               }*/
-        autoseq_track = track;
-        autoseq_direction = SLED_MOVE_STOP;
-        autoseq_timer = time_us_64();
         DEBUG_PRINT("Cancel\n");
         // DEBUG_PRINT("Cancel timer_range: %d cancel_timer: %d\n", timer_range, cancel_timer);
         return;
 
     case 0x4: // Fine search - forward
-        autoseq_track = track + jump_track;
+        track = track + jump_track;
         DEBUG_PRINT("Fine search - forward %d\n", track);
         break;
     case 0x5: // Fine search - reverse
-        autoseq_track = track - jump_track;
+        track = track - jump_track;
         DEBUG_PRINT("Fine search - reverse %d\n", track);
         break;
 
@@ -77,38 +73,38 @@ void autosequence()
         return;
 
     case 0x8: // 1 Track Jump - forward
-        autoseq_track = track + 1;
+        track = track + 1;
         DEBUG_PRINT("1 Track Jump - forward %d\n", track);
         break;
     case 0x9: // 1 Track Jump - reverse
-        autoseq_track = track - 1;
+        track = track - 1;
         DEBUG_PRINT("1 Track Jump - reverse %d\n", track);
         break;
 
     case 0xA: // 10 Track Jump - forward
-        autoseq_track = track + 10;
+        track = track + 10;
         DEBUG_PRINT("10 Track Jump - forward %d\n", track);
         break;
     case 0xB: // 10 Track Jump - reverse
-        autoseq_track = track - 10;
+        track = track - 10;
         DEBUG_PRINT("10 Track Jump - reverse %d\n", track);
         break;
 
     case 0xC: // 2N Track Jump - forward
-        autoseq_track = track + (2 * jump_track);
+        track = track + (2 * jump_track);
         DEBUG_PRINT("2N Track Jump - forward %d\n", track);
         break;
     case 0xD: // 2N Track Jump - reverse
-        autoseq_track = track - (2 * jump_track);
+        track = track - (2 * jump_track);
         DEBUG_PRINT("2N Track Jump - reverse %d\n", track);
         break;
 
     case 0xE: // M Track Move - forward
-        autoseq_track = track + jump_track;
+        track = track + jump_track;
         DEBUG_PRINT("M Track Move - forward %d\n", track);
         break;
     case 0xF: // M Track Move - reverse
-        autoseq_track = track - jump_track;
+        track = track - jump_track;
         DEBUG_PRINT("M Track Move - reverse %d\n", track);
         break;
 
@@ -117,8 +113,8 @@ void autosequence()
         break;
     }
 
-    autoseq_direction = (subcommand & 0x1) ? SLED_MOVE_REVERSE : SLED_MOVE_FORWARD;
-    autoseq_timer = time_us_64();
+    sector = track_to_sector(track);
+    sector_for_track_update = sector;
 }
 
 void sled_move()

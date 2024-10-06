@@ -34,9 +34,6 @@ volatile bool hasData = 0;
 volatile uint latched = 0;
 volatile bool soct = 0;
 
-volatile uint64_t autoseq_timer = 0;
-volatile uint64_t autoseq_direction = SLED_MOVE_STOP;
-volatile uint autoseq_track = 0;
 volatile uint count_track = 0;
 volatile uint track = 0;
 volatile uint original_track = 0;
@@ -61,8 +58,9 @@ volatile int mode = 1;
 mutex_t mechacon_mutex;
 volatile bool core_ready[2] = {false, false};
 
-volatile uint mechachon_sm_offset;
-volatile uint soct_offset;
+uint i2s_pio_offset;
+uint mechachon_sm_offset;
+uint soct_offset;
 volatile uint subq_offset;
 
 // PWM Config
@@ -73,8 +71,7 @@ uint slice_num_CLOCK;
 uint slice_num_DA15;
 uint slice_num_LRCK;
 
-volatile uint8_t current_sens;
-
+volatile uint current_sens;
 volatile bool SENS_data[16] = {
     0, // $0X - FZC
     0, // $1X - AS
@@ -98,8 +95,8 @@ void clampSectorTrackLimits();
 void initialize();
 void maybeChangeMode();
 void maybeReset();
-void select_sens(uint8_t new_sens);
-void set_sens(uint8_t what, bool new_value);
+void select_sens(uint new_sens);
+void set_sens(uint what, bool new_value);
 void updateMechSens();
 
 void clampSectorTrackLimits()
@@ -188,19 +185,16 @@ void initialize()
     gpio_set_input_hysteresis_enabled(SQCK, true);
     gpio_set_input_hysteresis_enabled(XLAT, true);
     gpio_set_input_hysteresis_enabled(CMD_CK, true);
-    gpio_set_drive_strength(LRCK, GPIO_DRIVE_STRENGTH_12MA);
+
+    uint scor_offset = pio_add_program(pio1, &scor_program);
     uint i2s_pio_offset = pio_add_program(pio0, &i2s_data_program);
-    i2s_data_program_init(pio0, I2S_DATA_SM, i2s_pio_offset, DA15);
-
     mechachon_sm_offset = pio_add_program(pio1, &mechacon_program);
-    mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, CMD_DATA);
-
-    uint offset5 = pio_add_program(pio1, &scor_program);
-    scor_program_init(pio1, SCOR_SM, offset5, SCOR);
-
     soct_offset = pio_add_program(pio1, &soct_program);
-
     subq_offset = pio_add_program(pio1, &subq_program);
+
+    scor_program_init(pio1, SCOR_SM, scor_offset, SCOR);
+    i2s_data_program_init(pio0, I2S_DATA_SM, i2s_pio_offset, DA15);
+    mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, CMD_DATA);
 
     uint64_t startTime = time_us_64();
 
@@ -299,12 +293,12 @@ void maybeReset()
     }
 }
 
-void select_sens(uint8_t new_sens)
+void select_sens(uint new_sens)
 {
     current_sens = new_sens;
 }
 
-void set_sens(uint8_t what, bool new_value)
+void set_sens(uint what, bool new_value)
 {
     SENS_data[what] = new_value;
     if (what == current_sens)
@@ -320,9 +314,9 @@ void updateMechSens()
         uint c = pio_sm_get_blocking(pio1, MECHACON_SM) >> 24;
         latched >>= 8;
         latched |= c << 16;
+        select_sens(latched >> 20);
+        gpio_put(SENS, SENS_data[latched >> 20]);
     }
-    select_sens(latched >> 20);
-    gpio_put(SENS, SENS_data[latched >> 20]);
 }
 
 int main()
@@ -330,14 +324,14 @@ int main()
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(100);
 
-    set_sys_clock_khz(271200, true);
-    sleep_ms(5);
-
 #if DEBUG_LOGGING_ENABLED
     stdio_init_all();
     stdio_set_chars_available_callback(NULL, NULL);
-    sleep_ms(2500);
+    sleep_ms(1250);
 #endif
+
+    set_sys_clock_khz(271200, true);
+    sleep_ms(5);
 
     DEBUG_PRINT("Initializing...\n");
     initialize();
@@ -413,32 +407,6 @@ int main()
                     original_track = track;
                     set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
                 }
-            }
-        }
-        else if (autoseq_direction == SLED_MOVE_FORWARD)
-        {
-            if ((time_us_64() - autoseq_timer) >= (TRACK_MOVE_TIME_US * (autoseq_track - track)))
-            {
-                autoseq_timer = time_us_64();
-                track = autoseq_track;
-                sector = track_to_sector(track);
-                sector_for_track_update = sector;
-                autoseq_direction = SLED_MOVE_STOP;
-                set_sens(SENS_AUTOSEQ, 0); // Should be high when inactive?
-                set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
-            }
-        }
-        else if (autoseq_direction == SLED_MOVE_REVERSE)
-        {
-            if ((time_us_64() - autoseq_timer) >= (TRACK_MOVE_TIME_US * (track - autoseq_track)))
-            {
-                autoseq_timer = time_us_64();
-                track = autoseq_track;
-                sector = track_to_sector(track);
-                sector_for_track_update = sector;
-                autoseq_direction = SLED_MOVE_STOP;
-                set_sens(SENS_AUTOSEQ, 0); // Should be high when inactive?
-                set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
             }
         }
         else if (SENS_data[SENS_GFS])

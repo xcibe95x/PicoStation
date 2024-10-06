@@ -307,6 +307,8 @@ void i2s_data_thread()
 
             sector_loaded[buffer_for_sd_read] = sector_t;
             buffer_for_sd_read = (buffer_for_sd_read + 1) % 2;
+
+            set_sens(SENS_XBUSY, 0);
         }
 
         if (!dma_channel_is_busy(channel))

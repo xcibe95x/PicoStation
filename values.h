@@ -40,9 +40,10 @@
 // SENS
 #define SENS_FZC 0x0
 #define SENS_AS 0x1
-#define SENS_SLED 0x2    // TZC
-#define SENS_AUTOSEQ 0x4 // XBUSY
-#define SENS_FOCUS 0x5   // FOK
+#define SENS_TZC 0x2
+// #define SENS_SELECT 0x3 // Several registers, need more research
+#define SENS_XBUSY 0x4
+#define SENS_FOK 0x5
 #define SENS_GFS 0xA
 #define SENS_COMP 0xB
 #define SENS_COUT 0xC
