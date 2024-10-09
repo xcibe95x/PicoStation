@@ -443,6 +443,7 @@ int main()
 
                 if (subq_delay && (sector >= 4650 && (time_us_64() - subq_delay_time) > 3333))
                 {
+                    set_sens(SENS_XBUSY, 0);
                     subq_delay = 0;
                     start_subq();
                 }

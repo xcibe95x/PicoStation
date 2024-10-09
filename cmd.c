@@ -29,6 +29,7 @@ extern volatile bool SENS_data[16];
 
 extern volatile bool soct;
 extern volatile uint soct_offset;
+extern volatile uint imageIndex;
 
 volatile uint jump_track = 0;
 
@@ -208,6 +209,32 @@ void interrupt_xlat(uint gpio, uint32_t events)
         break;
     case CMD_SPINDLE: // $EX commands - Spindle motor control
         spindle();
+        break;
+
+    case 0x0: // nop
+        break;
+
+    case CMD_CUSTOM: // picostation
+                     // case 0x6:        // xloader
+        // case 0xd:        // xloader
+        // printf("Custom/unknown command %x\n", latched);
+        switch ((latched & 0x0F0000) >> 16)
+        {
+        case 0x0: // Iamge 0
+            DEBUG_PRINT("Image 0 command!\n");
+            imageIndex = 0;
+            break;
+
+        case 0x1: // Previous Image
+            DEBUG_PRINT("Previous Image command!\n");
+            imageIndex = (imageIndex - 1) % NUM_IMAGES;
+            break;
+
+        case 0x2: // Next Image
+            DEBUG_PRINT("Next Image command!\n");
+            imageIndex = (imageIndex + 1) % NUM_IMAGES;
+            break;
+        }
         break;
     }
     /*

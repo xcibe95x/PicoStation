@@ -36,6 +36,7 @@
 #define CMD_SPEED 0x9
 #define CMD_COUNT_TRACK 0xB
 #define CMD_SPINDLE 0xE
+#define CMD_CUSTOM 0xF
 
 // SENS
 #define SENS_FZC 0x0
@@ -64,5 +65,7 @@
 //
 #define PSNEE_SECTOR_LIMIT 4500
 #define SECTOR_CACHE 50
+
+#define NUM_IMAGES 4
 
 #endif

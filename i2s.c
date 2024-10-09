@@ -26,12 +26,22 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-// #define TARGET_BIN "STREET MUSIC.bin"
-// #define TARGET_CUE "STREET MUSIC.cue"
-//  #define TARGET_BIN  "UNIROM_BOOTDISC_8.0.K.bin"
-//  #define TARGET_CUE  "UNIROM_BOOTDISC_8.0.K.cue"
-#define TARGET_BIN "UNIROM.bin"
-#define TARGET_CUE "UNIROM.cue"
+const TCHAR target_Bins[NUM_IMAGES][128] = {
+    "STREET MUSIC.bin",
+    "UNIROM_BOOTDISC_8.0.K.bin",
+    "C\\celeste\\celeste.bin",
+    "F\\fromage-0.93e.bin",
+};
+
+const TCHAR target_Cues[NUM_IMAGES][128] = {
+    "STREET MUSIC.cue",
+    "UNIROM_BOOTDISC_8.0.K.cue",
+    "C\\celeste\\celeste.cue", // Unable to parse atm
+    "F\\fromage-0.93e.cue",
+};
+
+volatile int imageIndex = 1;
+int loadedImageIndex = -1;
 
 extern volatile int sector;
 extern volatile uint latched;
@@ -50,6 +60,11 @@ int sector_t = -1;
 uint64_t psneeTimer;
 int psnee_hysteresis = 0;
 
+FRESULT fr;
+FIL fil;
+
+void i2s_data_thread();
+void loadImage(const char *targetCue, const char *targetBin);
 void psnee();
 
 // External functions, in main.c
@@ -75,21 +90,19 @@ void i2s_data_thread()
     int cachedSectors[SECTOR_CACHE] = {-1};
     int sector_loaded[2] = {-1};
     int roundRobinCacheIndex = 0;
-    FRESULT fr;
-    FIL fil;
     sd_card_t *pSD;
     int bytes;
-    char buf[128];
     uint16_t *cd_samples[SECTOR_CACHE];
     uint16_t CD_scrambling_key[1176] = {0};
     int key = 1;
-    int logical_track = 0;
 
+    // Allocate memory for samples
     pio_samples[0] = malloc(CD_SAMPLES_BYTES * 2);
     pio_samples[1] = malloc(CD_SAMPLES_BYTES * 2);
     memset(pio_samples[0], 0, CD_SAMPLES_BYTES * 2);
     memset(pio_samples[1], 0, CD_SAMPLES_BYTES * 2);
 
+    // Allocate memory for cache
     for (int i = 0; i < SECTOR_CACHE; i++)
     {
         cd_samples[i] = malloc(CD_SAMPLES_BYTES);
@@ -102,6 +115,7 @@ void i2s_data_thread()
         }
     }
 
+    // Generate CD scrambling key
     for (int i = 6; i < 1176; i++)
     {
         char upper = key & 0xFF;
@@ -125,85 +139,8 @@ void i2s_data_thread()
     pSD = sd_get_by_num(0);
     fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
     if (FR_OK != fr)
+    {
         panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-    fr = f_open(&fil, TARGET_CUE, FA_READ);
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) error: (%d)\n", FRESULT_str(fr), fr);
-
-    f_gets(buf, 128, &fil);
-
-    while (1)
-    {
-        f_gets(buf, 128, &fil);
-        char *token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
-        {
-            num_logical_tracks++;
-        }
-        if (f_eof(&fil))
-        {
-            break;
-        }
-    }
-
-    f_rewind(&fil);
-    DEBUG_PRINT("num_logical_tracks: %d\n", num_logical_tracks);
-
-    logical_track_to_sector = malloc(sizeof(int) * (num_logical_tracks + 2));
-    is_data_track = malloc(sizeof(bool) * (num_logical_tracks + 2));
-    logical_track_to_sector[0] = 0;
-    logical_track_to_sector[1] = 4500;
-
-    f_gets(buf, 128, &fil);
-    while (1)
-    {
-        f_gets(buf, 128, &fil);
-
-        if (f_eof(&fil))
-        {
-            break;
-        }
-        char *token;
-        token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
-        {
-            token = strtok(NULL, " ");
-            logical_track = atoi(token);
-        }
-        token = strtok(NULL, " ");
-        token[strcspn(token, "\r\n")] = 0;
-        is_data_track[logical_track] = strcmp("AUDIO", token);
-        if (is_data_track[logical_track])
-        {
-            hasData = 1;
-        }
-        f_gets(buf, 128, &fil);
-        token = strtok(buf, " ");
-        token = strtok(NULL, " ");
-        token = strtok(NULL, " ");
-
-        int mm = atoi(strtok(token, ":"));
-        int ss = atoi(strtok(NULL, ":"));
-        int ff = atoi(strtok(NULL, ":"));
-        if (logical_track != 1)
-        {
-            logical_track_to_sector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
-        }
-        DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
-    }
-
-    f_close(&fil);
-    fr = f_open(&fil, TARGET_BIN, FA_READ);
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) error: (%d)\n", FRESULT_str(fr), fr);
-
-    logical_track_to_sector[num_logical_tracks + 1] = f_size(&fil) / 2352 + 4650;
-    is_data_track[num_logical_tracks + 1] = 0;
-    is_data_track[0] = 0;
-
-    for (int i = 0; i < num_logical_tracks + 2; i++)
-    {
-        DEBUG_PRINT("sector_t: %d data: %d\n", logical_track_to_sector[i], is_data_track[i]);
     }
 
     int channel = dma_claim_unused_channel(true);
@@ -234,6 +171,20 @@ void i2s_data_thread()
 
         // PSNEE
         psnee();
+
+        if (loadedImageIndex != imageIndex)
+        {
+            loadImage(target_Cues[imageIndex], target_Bins[imageIndex]);
+            loadedImageIndex = imageIndex;
+            memset(cachedSectors, -1, sizeof(cachedSectors));
+            sector_loaded[0] = -1;
+            sector_loaded[1] = -1;
+            roundRobinCacheIndex = 0;
+            buffer_for_dma = 1;
+            buffer_for_sd_read = 0;
+            memset(pio_samples[0], 0, CD_SAMPLES_BYTES * 2);
+            memset(pio_samples[1], 0, CD_SAMPLES_BYTES * 2);
+        }
 
         if (buffer_for_dma != buffer_for_sd_read)
         {
@@ -307,8 +258,6 @@ void i2s_data_thread()
 
             sector_loaded[buffer_for_sd_read] = sector_t;
             buffer_for_sd_read = (buffer_for_sd_read + 1) % 2;
-
-            set_sens(SENS_XBUSY, 0);
         }
 
         if (!dma_channel_is_busy(channel))
@@ -330,6 +279,111 @@ void i2s_data_thread()
             dma_channel_start(channel);
         }
     }
+}
+
+void loadImage(const TCHAR *targetCue, const TCHAR *targetBin)
+{
+    char buf[128];
+    int logical_track = 0;
+
+    // CUE parsing
+    // if fil is loaded, close it
+    if (&fil)
+    {
+        f_close(&fil);
+    }
+
+    printf("Opening files: cue:'%s' bin:'%s'\n", targetCue, targetBin);
+
+    fr = f_open(&fil, targetCue, FA_READ); // Open cue sheet
+    if (FR_OK != fr && FR_EXIST != fr)
+        panic("f_open(%s) %s error: (%d)\n", targetCue, FRESULT_str(fr), fr);
+
+    f_gets(buf, 128, &fil);
+    char *token_test;
+    token_test = strtok(buf, " ");
+    if (strcmp("FILE", token_test) == 0)
+    {
+        // Parse the file name
+        token_test = strtok(NULL, " ");
+        printf("FILE: %s\n", token_test);
+    }
+
+    while (1)
+    {
+        f_gets(buf, 128, &fil);
+        char *token = strtok(buf, " ");
+        if (strcmp("TRACK", token) == 0)
+        {
+            num_logical_tracks++;
+        }
+        if (f_eof(&fil))
+        {
+            break;
+        }
+    }
+
+    f_rewind(&fil);
+    DEBUG_PRINT("num_logical_tracks: %d\n", num_logical_tracks);
+
+    logical_track_to_sector = malloc(sizeof(int) * (num_logical_tracks + 2));
+    is_data_track = malloc(sizeof(bool) * (num_logical_tracks + 2));
+    logical_track_to_sector[0] = 0;
+    logical_track_to_sector[1] = 4500;
+
+    f_gets(buf, 128, &fil);
+    while (1)
+    {
+        f_gets(buf, 128, &fil);
+
+        if (f_eof(&fil))
+        {
+            break;
+        }
+        char *token;
+        token = strtok(buf, " ");
+        if (strcmp("TRACK", token) == 0)
+        {
+            token = strtok(NULL, " ");
+            logical_track = atoi(token);
+        }
+        token = strtok(NULL, " ");
+        token[strcspn(token, "\r\n")] = 0;
+        is_data_track[logical_track] = strcmp("AUDIO", token);
+        if (is_data_track[logical_track])
+        {
+            hasData = 1;
+        }
+        f_gets(buf, 128, &fil);
+        token = strtok(buf, " ");
+        token = strtok(NULL, " ");
+        token = strtok(NULL, " ");
+
+        int mm = atoi(strtok(token, ":"));
+        int ss = atoi(strtok(NULL, ":"));
+        int ff = atoi(strtok(NULL, ":"));
+        if (logical_track != 1)
+        {
+            logical_track_to_sector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
+        }
+        DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
+    }
+
+    f_close(&fil);
+    fr = f_open(&fil, targetBin, FA_READ);
+    if (FR_OK != fr && FR_EXIST != fr)
+        panic("f_open(%s) %s error: (%d)\n", targetBin, FRESULT_str(fr), fr);
+
+    logical_track_to_sector[num_logical_tracks + 1] = f_size(&fil) / 2352 + 4650;
+    is_data_track[num_logical_tracks + 1] = 0;
+    is_data_track[0] = 0;
+
+    for (int i = 0; i < num_logical_tracks + 2; i++)
+    {
+        DEBUG_PRINT("sector_t: %d data: %d\n", logical_track_to_sector[i], is_data_track[i]);
+    }
+
+    // CUE parsing done
 }
 
 void psnee()
