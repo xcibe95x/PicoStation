@@ -81,7 +81,7 @@ char SCExData[][44] = {
 void i2s_data_thread()
 {
     // TODO: separate PSNEE, cue parse, and i2s functions
-    int bytesRead;
+    uint bytesRead;
     uint32_t *pio_samples[2];
     psneeTimer = time_us_64();
     uint64_t sector_change_timer = 0;
@@ -97,15 +97,15 @@ void i2s_data_thread()
     int key = 1;
 
     // Allocate memory for samples
-    pio_samples[0] = malloc(CD_SAMPLES_BYTES * 2);
-    pio_samples[1] = malloc(CD_SAMPLES_BYTES * 2);
+    pio_samples[0] = (uint32_t*)malloc(CD_SAMPLES_BYTES * 2);
+    pio_samples[1] = (uint32_t*)malloc(CD_SAMPLES_BYTES * 2);
     memset(pio_samples[0], 0, CD_SAMPLES_BYTES * 2);
     memset(pio_samples[1], 0, CD_SAMPLES_BYTES * 2);
 
     // Allocate memory for cache
     for (int i = 0; i < SECTOR_CACHE; i++)
     {
-        cd_samples[i] = malloc(CD_SAMPLES_BYTES);
+        cd_samples[i] = (uint16_t*)malloc(CD_SAMPLES_BYTES);
         if (cd_samples[i] == NULL)
         {
             while (true)
@@ -326,8 +326,8 @@ void loadImage(const TCHAR *targetCue, const TCHAR *targetBin)
     f_rewind(&fil);
     DEBUG_PRINT("num_logical_tracks: %d\n", num_logical_tracks);
 
-    logical_track_to_sector = malloc(sizeof(int) * (num_logical_tracks + 2));
-    is_data_track = malloc(sizeof(bool) * (num_logical_tracks + 2));
+    logical_track_to_sector = (int*)malloc(sizeof(int) * (num_logical_tracks + 2));
+    is_data_track = (bool*)malloc(sizeof(bool) * (num_logical_tracks + 2));
     logical_track_to_sector[0] = 0;
     logical_track_to_sector[1] = 4500;
 
