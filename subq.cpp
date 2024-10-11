@@ -37,7 +37,7 @@ void printf_subq(uint8_t *subqdata)
 
 static inline void send_subq(uint8_t *subqdata)
 {
-    subq_program_init(pio1, SUBQ_SM, subq_offset, SQSO, SQCK);
+    subq_program_init(pio1, SUBQ_SM, subq_offset, Pin::SQSO, Pin::SQCK);
     pio_sm_set_enabled(pio1, SUBQ_SM, true);
 
     uint sub1 = (subqdata[3] << 24) |

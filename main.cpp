@@ -38,7 +38,7 @@ volatile uint count_track = 0;
 volatile uint track = 0;
 volatile uint original_track = 0;
 volatile uint64_t sled_timer = 0;
-volatile uint sled_move_direction = SLED_MOVE_STOP;
+volatile uint sled_move_direction = SledMove::STOP;
 
 volatile uint sector = 0;
 volatile uint sector_for_track_update = 0;
@@ -121,37 +121,37 @@ void initialize()
     srand(time(NULL));
     mutex_init(&mechacon_mutex);
 
-    gpio_init(SCEX_DATA);
-    gpio_init(SENS);
-    gpio_init(LMTSW);
-    gpio_init(XLAT);
-    gpio_init(DOOR);
-    gpio_init(RESET);
-    gpio_init(SQCK);
-    gpio_init(SQSO);
-    gpio_init(CMD_CK);
+    gpio_init(Pin::SCEX_DATA);
+    gpio_init(Pin::SENS);
+    gpio_init(Pin::LMTSW);
+    gpio_init(Pin::XLAT);
+    gpio_init(Pin::DOOR);
+    gpio_init(Pin::RESET);
+    gpio_init(Pin::SQCK);
+    gpio_init(Pin::SQSO);
+    gpio_init(Pin::CMD_CK);
 
-    gpio_init(LRCK);
-    gpio_init(DA15);
-    gpio_init(CLK);
+    gpio_init(Pin::LRCK);
+    gpio_init(Pin::DA15);
+    gpio_init(Pin::CLK);
 
-    gpio_set_dir(SCEX_DATA, GPIO_OUT);
-    gpio_put(SCEX_DATA, 1);
-    gpio_set_dir(SENS, GPIO_OUT);
-    gpio_set_dir(LMTSW, GPIO_OUT);
-    gpio_set_dir(XLAT, GPIO_IN);
-    gpio_set_dir(DOOR, GPIO_IN);
-    gpio_set_dir(RESET, GPIO_IN);
-    gpio_set_dir(SQCK, GPIO_IN);
-    gpio_set_dir(SQSO, GPIO_OUT);
-    gpio_set_dir(CMD_CK, GPIO_IN);
+    gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
+    gpio_put(Pin::SCEX_DATA, 1);
+    gpio_set_dir(Pin::SENS, GPIO_OUT);
+    gpio_set_dir(Pin::LMTSW, GPIO_OUT);
+    gpio_set_dir(Pin::XLAT, GPIO_IN);
+    gpio_set_dir(Pin::DOOR, GPIO_IN);
+    gpio_set_dir(Pin::RESET, GPIO_IN);
+    gpio_set_dir(Pin::SQCK, GPIO_IN);
+    gpio_set_dir(Pin::SQSO, GPIO_OUT);
+    gpio_set_dir(Pin::CMD_CK, GPIO_IN);
 
-    gpio_set_dir(LRCK, GPIO_OUT);
-    gpio_set_dir(DA15, GPIO_OUT);
-    gpio_set_dir(CLK, GPIO_OUT);
+    gpio_set_dir(Pin::LRCK, GPIO_OUT);
+    gpio_set_dir(Pin::DA15, GPIO_OUT);
+    gpio_set_dir(Pin::CLK, GPIO_OUT);
 
-    gpio_set_function(CLK, GPIO_FUNC_PWM);
-    slice_num_CLOCK = pwm_gpio_to_slice_num(CLK);
+    gpio_set_function(Pin::CLK, GPIO_FUNC_PWM);
+    slice_num_CLOCK = pwm_gpio_to_slice_num(Pin::CLK);
     cfg_CLOCK = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_CLOCK, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_CLOCK, 1);
@@ -159,8 +159,8 @@ void initialize()
     pwm_init(slice_num_CLOCK, &cfg_CLOCK, false);
     pwm_set_both_levels(slice_num_CLOCK, 1, 1);
 
-    gpio_set_function(DA15, GPIO_FUNC_PWM);
-    slice_num_DA15 = pwm_gpio_to_slice_num(DA15);
+    gpio_set_function(Pin::DA15, GPIO_FUNC_PWM);
+    slice_num_DA15 = pwm_gpio_to_slice_num(Pin::DA15);
     cfg_DA15 = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_DA15, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_DA15, (1 * 32) - 1);
@@ -169,8 +169,8 @@ void initialize()
     pwm_init(slice_num_DA15, &cfg_DA15, false);
     pwm_set_both_levels(slice_num_DA15, 16, 16);
 
-    gpio_set_function(LRCK, GPIO_FUNC_PWM);
-    slice_num_LRCK = pwm_gpio_to_slice_num(LRCK);
+    gpio_set_function(Pin::LRCK, GPIO_FUNC_PWM);
+    slice_num_LRCK = pwm_gpio_to_slice_num(Pin::LRCK);
     cfg_LRCK = pwm_get_default_config();
     pwm_config_set_clkdiv_mode(&cfg_LRCK, PWM_DIV_FREE_RUNNING);
     pwm_config_set_wrap(&cfg_LRCK, (48 * 32) - 1);
@@ -178,13 +178,13 @@ void initialize()
     pwm_init(slice_num_LRCK, &cfg_LRCK, false);
     pwm_set_both_levels(slice_num_LRCK, (48 * 16), (48 * 16));
 
-    gpio_put(SQSO, 0);
-    gpio_put(SCOR, 0);
+    gpio_put(Pin::SQSO, 0);
+    gpio_put(Pin::SCOR, 0);
 
-    gpio_set_input_hysteresis_enabled(RESET, true);
-    gpio_set_input_hysteresis_enabled(SQCK, true);
-    gpio_set_input_hysteresis_enabled(XLAT, true);
-    gpio_set_input_hysteresis_enabled(CMD_CK, true);
+    gpio_set_input_hysteresis_enabled(Pin::RESET, true);
+    gpio_set_input_hysteresis_enabled(Pin::SQCK, true);
+    gpio_set_input_hysteresis_enabled(Pin::XLAT, true);
+    gpio_set_input_hysteresis_enabled(Pin::CMD_CK, true);
 
     uint scor_offset = pio_add_program(pio1, &scor_program);
     uint i2s_pio_offset = pio_add_program(pio0, &i2s_data_program);
@@ -192,23 +192,23 @@ void initialize()
     soct_offset = pio_add_program(pio1, &soct_program);
     subq_offset = pio_add_program(pio1, &subq_program);
 
-    scor_program_init(pio1, SCOR_SM, scor_offset, SCOR);
-    i2s_data_program_init(pio0, I2S_DATA_SM, i2s_pio_offset, DA15);
-    mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, CMD_DATA);
+    scor_program_init(pio1, SCOR_SM, scor_offset, Pin::SCOR);
+    i2s_data_program_init(pio0, I2S_DATA_SM, i2s_pio_offset, Pin::DA15);
+    mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, Pin::CMD_DATA);
 
     uint64_t startTime = time_us_64();
 
     pio_enable_sm_mask_in_sync(pio0, (1u << I2S_DATA_SM));
     pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
 
-    gpio_set_dir(RESET, GPIO_OUT);
-    gpio_put(RESET, 0);
+    gpio_set_dir(Pin::RESET, GPIO_OUT);
+    gpio_put(Pin::RESET, 0);
     sleep_ms(300);
-    gpio_set_dir(RESET, GPIO_IN);
+    gpio_set_dir(Pin::RESET, GPIO_IN);
 
     while ((time_us_64() - startTime) < 30000)
     {
-        if (gpio_get(RESET) == 0)
+        if (gpio_get(Pin::RESET) == 0)
         {
             startTime = time_us_64();
         }
@@ -216,7 +216,7 @@ void initialize()
 
     while ((time_us_64() - startTime) < 30000)
     {
-        if (gpio_get(CMD_CK) == 0)
+        if (gpio_get(Pin::CMD_CK) == 0)
         {
             startTime = time_us_64();
         }
@@ -224,7 +224,7 @@ void initialize()
 
     DEBUG_PRINT("ON!\n");
     multicore_launch_core1(i2s_data_thread);
-    gpio_set_irq_enabled_with_callback(XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
+    gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_enable_sm_mask_in_sync(pio1, (1u << SCOR_SM) | (1u << MECHACON_SM));
 }
 
@@ -256,26 +256,26 @@ void maybeChangeMode()
 
 void maybeReset()
 {
-    if (gpio_get(RESET) == 0)
+    if (gpio_get(Pin::RESET) == 0)
     {
         DEBUG_PRINT("RESET!\n");
         pio_sm_set_enabled(pio1, SUBQ_SM, false);
         pio_sm_set_enabled(pio1, SOCT_SM, false);
         pio_sm_set_enabled(pio1, MECHACON_SM, false);
 
-        mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, CMD_DATA);
+        mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, Pin::CMD_DATA);
         subq_delay = 0;
         soct = 0;
 
-        gpio_init(SQSO);
-        gpio_set_dir(SQSO, GPIO_OUT);
-        gpio_put(SQSO, 0);
+        gpio_init(Pin::SQSO);
+        gpio_set_dir(Pin::SQSO, GPIO_OUT);
+        gpio_put(Pin::SQSO, 0);
 
         uint64_t startTime = time_us_64();
 
         while ((time_us_64() - startTime) < 30000)
         {
-            if (gpio_get(RESET) == 0)
+            if (gpio_get(Pin::RESET) == 0)
             {
                 startTime = time_us_64();
             }
@@ -283,7 +283,7 @@ void maybeReset()
 
         while ((time_us_64() - startTime) < 30000)
         {
-            if (gpio_get(CMD_CK) == 0)
+            if (gpio_get(Pin::CMD_CK) == 0)
             {
                 startTime = time_us_64();
             }
@@ -303,7 +303,7 @@ void set_sens(uint what, bool new_value)
     SENS_data[what] = new_value;
     if (what == current_sens)
     {
-        gpio_put(SENS, new_value);
+        gpio_put(Pin::SENS, new_value);
     }
 }
 
@@ -315,7 +315,7 @@ void updateMechSens()
         latched >>= 8;
         latched |= c << 16;
         select_sens(latched >> 20);
-        gpio_put(SENS, SENS_data[latched >> 20]);
+        gpio_put(Pin::SENS, SENS_data[latched >> 20]);
     }
 }
 
@@ -348,7 +348,7 @@ int main()
     while (true)
     {
         // Limit Switch
-        gpio_put(LMTSW, sector > 3000);
+        gpio_put(Pin::LMTSW, sector > 3000);
 
         // Update latching, output SENS
         if (mutex_try_enter(&mechacon_mutex, 0))
@@ -378,7 +378,7 @@ int main()
             subq_start_time = time_us_64();
             restore_interrupts(interrupts);
         }
-        else if (sled_move_direction == SLED_MOVE_FORWARD)
+        else if (sled_move_direction == SledMove::FORWARD)
         {
             if ((time_us_64() - sled_timer) > TRACK_MOVE_TIME_US)
             {
@@ -390,11 +390,11 @@ int main()
                 if ((track - original_track) >= count_track)
                 {
                     original_track = track;
-                    set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
+                    set_sens(SENS::COUT, !SENS_data[SENS::COUT]);
                 }
             }
         }
-        else if (sled_move_direction == SLED_MOVE_REVERSE)
+        else if (sled_move_direction == SledMove::REVERSE)
         {
             if ((time_us_64() - sled_timer) > TRACK_MOVE_TIME_US)
             {
@@ -405,11 +405,11 @@ int main()
                 if ((original_track - track) >= count_track)
                 {
                     original_track = track;
-                    set_sens(SENS_COUT, !SENS_data[SENS_COUT]);
+                    set_sens(SENS::COUT, !SENS_data[SENS::COUT]);
                 }
             }
         }
-        else if (SENS_data[SENS_GFS])
+        else if (SENS_data[SENS::GFS])
         {
             if (sector < 4650 && (time_us_64() - subq_start_time) > 6333)
             {
@@ -443,7 +443,7 @@ int main()
 
                 if (subq_delay && (sector >= 4650 && (time_us_64() - subq_delay_time) > 3333))
                 {
-                    set_sens(SENS_XBUSY, 0);
+                    set_sens(SENS::XBUSY, 0);
                     subq_delay = 0;
                     start_subq();
                 }

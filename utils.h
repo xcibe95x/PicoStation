@@ -1,5 +1,4 @@
-#ifndef UTILS_H_INCLUDED
-#define UTILS_H_INCLUDED
+#pragma once
 
 #include <math.h>
 
@@ -24,4 +23,3 @@ inline int sectors_per_track(int track)
 {
     return round(track * 0.000616397 + 9);
 }
-#endif

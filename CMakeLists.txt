@@ -8,7 +8,7 @@ pico_sdk_init()
 
 add_executable(picostation)
 
-target_sources(picostation PRIVATE main.cpp utils.cpp subq.cpp cmd.cpp hw_config.cpp i2s.cpp)
+target_sources(picostation PRIVATE cmd.cpp disc_image.cpp hw_config.cpp i2s.cpp main.cpp subq.cpp utils.cpp)
 
 add_subdirectory(FatFs_SPI build)
 

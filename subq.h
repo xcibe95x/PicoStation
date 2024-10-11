@@ -1,6 +1,3 @@
-#ifndef SUBQ_H_INCLUDED
-#define SUBQ_H_INCLUDED
+#pragma once
 
 void start_subq();
-
-#endif

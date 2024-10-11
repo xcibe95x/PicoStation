@@ -11,6 +11,7 @@
 #include "main.pio.h"
 
 #include "cmd.h"
+#include "disc_image.h"
 #include "f_util.h"
 #include "ff.h"
 #include "hw_config.h"
@@ -30,14 +31,14 @@ const TCHAR target_Bins[NUM_IMAGES][128] = {
     "STREET MUSIC.bin",
     "UNIROM_BOOTDISC_8.0.K.bin",
     "C\\celeste\\celeste.bin",
-    "F\\fromage-0.93e.bin",
+    "F\\fromage-0.93e\\fromage.bin",
 };
 
 const TCHAR target_Cues[NUM_IMAGES][128] = {
     "STREET MUSIC.cue",
     "UNIROM_BOOTDISC_8.0.K.cue",
     "C\\celeste\\celeste.cue", // Unable to parse atm
-    "F\\fromage-0.93e.cue",
+    "F\\fromage-0.93e\\fromage.cue",
 };
 
 volatile int imageIndex = 1;
@@ -64,7 +65,6 @@ FRESULT fr;
 FIL fil;
 
 void i2s_data_thread();
-void loadImage(const char *targetCue, const char *targetBin);
 void psnee();
 
 // External functions, in main.c
@@ -174,7 +174,7 @@ void i2s_data_thread()
 
         if (loadedImageIndex != imageIndex)
         {
-            loadImage(target_Cues[imageIndex], target_Bins[imageIndex]);
+            picostation::cueparser::loadImage(&fil, target_Cues[imageIndex], target_Bins[imageIndex]);
             loadedImageIndex = imageIndex;
             memset(cachedSectors, -1, sizeof(cachedSectors));
             sector_loaded[0] = -1;
@@ -267,11 +267,11 @@ void i2s_data_thread()
 
             dma_hw->ch[channel].read_addr = (uint32_t)pio_samples[buffer_for_dma];
 
-            while (gpio_get(LRCK) == 1)
+            while (gpio_get(Pin::LRCK) == 1)
             {
                 tight_loop_contents();
             }
-            while (gpio_get(LRCK) == 0)
+            while (gpio_get(Pin::LRCK) == 0)
             {
                 tight_loop_contents();
             }
@@ -281,115 +281,10 @@ void i2s_data_thread()
     }
 }
 
-void loadImage(const TCHAR *targetCue, const TCHAR *targetBin)
-{
-    char buf[128];
-    int logical_track = 0;
-
-    // CUE parsing
-    // if fil is loaded, close it
-    if (&fil)
-    {
-        f_close(&fil);
-    }
-
-    printf("Opening files: cue:'%s' bin:'%s'\n", targetCue, targetBin);
-
-    fr = f_open(&fil, targetCue, FA_READ); // Open cue sheet
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) %s error: (%d)\n", targetCue, FRESULT_str(fr), fr);
-
-    f_gets(buf, 128, &fil);
-    char *token_test;
-    token_test = strtok(buf, " ");
-    if (strcmp("FILE", token_test) == 0)
-    {
-        // Parse the file name
-        token_test = strtok(NULL, " ");
-        printf("FILE: %s\n", token_test);
-    }
-
-    while (1)
-    {
-        f_gets(buf, 128, &fil);
-        char *token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
-        {
-            num_logical_tracks++;
-        }
-        if (f_eof(&fil))
-        {
-            break;
-        }
-    }
-
-    f_rewind(&fil);
-    DEBUG_PRINT("num_logical_tracks: %d\n", num_logical_tracks);
-
-    logical_track_to_sector = (int*)malloc(sizeof(int) * (num_logical_tracks + 2));
-    is_data_track = (bool*)malloc(sizeof(bool) * (num_logical_tracks + 2));
-    logical_track_to_sector[0] = 0;
-    logical_track_to_sector[1] = 4500;
-
-    f_gets(buf, 128, &fil);
-    while (1)
-    {
-        f_gets(buf, 128, &fil);
-
-        if (f_eof(&fil))
-        {
-            break;
-        }
-        char *token;
-        token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
-        {
-            token = strtok(NULL, " ");
-            logical_track = atoi(token);
-        }
-        token = strtok(NULL, " ");
-        token[strcspn(token, "\r\n")] = 0;
-        is_data_track[logical_track] = strcmp("AUDIO", token);
-        if (is_data_track[logical_track])
-        {
-            hasData = 1;
-        }
-        f_gets(buf, 128, &fil);
-        token = strtok(buf, " ");
-        token = strtok(NULL, " ");
-        token = strtok(NULL, " ");
-
-        int mm = atoi(strtok(token, ":"));
-        int ss = atoi(strtok(NULL, ":"));
-        int ff = atoi(strtok(NULL, ":"));
-        if (logical_track != 1)
-        {
-            logical_track_to_sector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
-        }
-        DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
-    }
-
-    f_close(&fil);
-    fr = f_open(&fil, targetBin, FA_READ);
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) %s error: (%d)\n", targetBin, FRESULT_str(fr), fr);
-
-    logical_track_to_sector[num_logical_tracks + 1] = f_size(&fil) / 2352 + 4650;
-    is_data_track[num_logical_tracks + 1] = 0;
-    is_data_track[0] = 0;
-
-    for (int i = 0; i < num_logical_tracks + 2; i++)
-    {
-        DEBUG_PRINT("sector_t: %d data: %d\n", logical_track_to_sector[i], is_data_track[i]);
-    }
-
-    // CUE parsing done
-}
-
 void psnee()
 {
     if (sector_t > 0 && sector_t < PSNEE_SECTOR_LIMIT &&
-        SENS_data[SENS_GFS] && !soct && hasData &&
+        SENS_data[SENS::GFS] && !soct && hasData &&
         ((time_us_64() - psneeTimer) > 13333))
     {
         psnee_hysteresis++;
@@ -400,7 +295,7 @@ void psnee()
     {
         psnee_hysteresis = 0;
         DEBUG_PRINT("+SCEX\n");
-        gpio_put(SCEX_DATA, 0);
+        gpio_put(Pin::SCEX_DATA, 0);
         psneeTimer = time_us_64();
         while ((time_us_64() - psneeTimer) < 90000)
         {
@@ -413,7 +308,7 @@ void psnee()
         {
             for (int j = 0; j < 44; j++)
             {
-                gpio_put(SCEX_DATA, SCExData[i % 3][j]);
+                gpio_put(Pin::SCEX_DATA, SCExData[i % 3][j]);
                 psneeTimer = time_us_64();
                 while ((time_us_64() - psneeTimer) < 4000)
                 {
@@ -423,7 +318,7 @@ void psnee()
                     }
                 }
             }
-            gpio_put(SCEX_DATA, 0);
+            gpio_put(Pin::SCEX_DATA, 0);
             psneeTimer = time_us_64();
             while ((time_us_64() - psneeTimer) < 90000)
             {
@@ -435,7 +330,7 @@ void psnee()
         }
 
     abort_psnee:
-        gpio_put(SCEX_DATA, 0);
+        gpio_put(Pin::SCEX_DATA, 0);
         psneeTimer = time_us_64();
         DEBUG_PRINT("-SCEX\n");
     }
