@@ -132,10 +132,10 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
 
     
 % c-sdk {
-static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t data_clock_pin) {
+static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t data_clock_pin, uint8_t data_pin) {
     pio_gpio_init(pio, 16); // DA16
     pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin, 1, false);   // DA15 bitclock input
-    pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin+1, 1, true);  // DA16 output   
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);  // DA16 output   
     pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
     sm_config_set_in_pins(&sm_config, 15);
     sm_config_set_out_pins(&sm_config, 16, 1);

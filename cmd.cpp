@@ -17,6 +17,21 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
+namespace Command
+{
+    enum : uint
+    {
+        SLED = 0x2,
+        AUTOSEQ = 0x4,
+        JUMP_TRACK = 0x7,
+        SOCT = 0x8,
+        SPEED = 0x9,
+        COUNT_TRACK = 0xb,
+        SPINDLE = 0xe,
+        CUSTOM = 0xf
+    };
+}
+
 extern volatile uint latched;
 extern volatile uint count_track;
 extern volatile uint sled_move_direction;
@@ -187,10 +202,10 @@ void interrupt_xlat(uint gpio, uint32_t events)
 
     case Command::SOCT: // $8X commands - MODE specification
         soct = 1;
-        pio_sm_set_enabled(pio1, SUBQ_SM, false);
-        soct_program_init(pio1, SOCT_SM, soct_offset, Pin::SQSO, Pin::SQCK);
-        pio_sm_set_enabled(pio1, SOCT_SM, true);
-        pio_sm_put_blocking(pio1, SOCT_SM, 0xFFFFFFF);
+        pio_sm_set_enabled(pio0, SM::c_subq, false);
+        soct_program_init(pio1, SM::c_soct, soct_offset, Pin::SQSO, Pin::SQCK);
+        pio_sm_set_enabled(pio1, SM::c_soct, true);
+        pio_sm_put_blocking(pio1, SM::c_soct, 0xFFFFFFF);
         break;
     case Command::SPEED: // $9X commands - 1x/2x speed setting
         if ((latched & 0xF40000) == 0x940000 && mode == 1)
@@ -224,12 +239,12 @@ void interrupt_xlat(uint gpio, uint32_t events)
 
         case 0x1: // Previous Image
             DEBUG_PRINT("Previous Image command!\n");
-            imageIndex = (imageIndex - 1) % NUM_IMAGES;
+            imageIndex = (imageIndex - 1) % c_numImages;
             break;
 
         case 0x2: // Next Image
             DEBUG_PRINT("Next Image command!\n");
-            imageIndex = (imageIndex + 1) % NUM_IMAGES;
+            imageIndex = (imageIndex + 1) % c_numImages;
             break;
         }
         break;

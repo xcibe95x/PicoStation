@@ -27,33 +27,23 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-const TCHAR target_Bins[NUM_IMAGES][128] = {
-    "STREET MUSIC.bin",
-    "UNIROM_BOOTDISC_8.0.K.bin",
-    "C\\celeste\\celeste.bin",
-    "F\\fromage-0.93e\\fromage.bin",
+const TCHAR target_Bins[c_numImages][128] = {
+    "UNIROM.bin",
 };
 
-const TCHAR target_Cues[NUM_IMAGES][128] = {
-    "STREET MUSIC.cue",
-    "UNIROM_BOOTDISC_8.0.K.cue",
-    "C\\celeste\\celeste.cue", // Unable to parse atm
-    "F\\fromage-0.93e\\fromage.cue",
+const TCHAR target_Cues[c_numImages][128] = {
+    "UNIROM.cue",
 };
 
-volatile int imageIndex = 1;
+volatile int imageIndex = 0;
 int loadedImageIndex = -1;
 
 extern volatile int sector;
 extern volatile uint latched;
-extern volatile int num_logical_tracks;
 extern volatile int current_logical_track;
 extern volatile int sector_sending;
 extern volatile bool SENS_data[16];
 extern volatile bool soct;
-extern volatile bool hasData;
-extern int *logical_track_to_sector;
-extern bool *is_data_track;
 extern mutex_t mechacon_mutex;
 extern volatile bool core_ready[2];
 
@@ -63,6 +53,13 @@ int psnee_hysteresis = 0;
 
 FRESULT fr;
 FIL fil;
+
+static constexpr int c_psneeSectorLimit = 4500;
+constexpr size_t c_cdSamples = 588;
+constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
+constexpr int c_sectorCache = 50;
+
+extern picostation::DiscImage discImage;
 
 void i2s_data_thread();
 void psnee();
@@ -82,38 +79,20 @@ void i2s_data_thread()
 {
     // TODO: separate PSNEE, cue parse, and i2s functions
     uint bytesRead;
-    uint32_t *pio_samples[2];
+    uint32_t pio_samples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0, 0};
     psneeTimer = time_us_64();
     uint64_t sector_change_timer = 0;
     int buffer_for_dma = 1;
     int buffer_for_sd_read = 0;
-    int cachedSectors[SECTOR_CACHE] = {-1};
+    int cachedSectors[c_sectorCache] = {-1};
     int sector_loaded[2] = {-1};
     int roundRobinCacheIndex = 0;
     sd_card_t *pSD;
     int bytes;
-    uint16_t *cd_samples[SECTOR_CACHE];
+    uint16_t cd_samples[c_sectorCache][c_cdSamplesBytes / sizeof(uint16_t)] = {0};
     uint16_t CD_scrambling_key[1176] = {0};
     int key = 1;
 
-    // Allocate memory for samples
-    pio_samples[0] = (uint32_t*)malloc(CD_SAMPLES_BYTES * 2);
-    pio_samples[1] = (uint32_t*)malloc(CD_SAMPLES_BYTES * 2);
-    memset(pio_samples[0], 0, CD_SAMPLES_BYTES * 2);
-    memset(pio_samples[1], 0, CD_SAMPLES_BYTES * 2);
-
-    // Allocate memory for cache
-    for (int i = 0; i < SECTOR_CACHE; i++)
-    {
-        cd_samples[i] = (uint16_t*)malloc(CD_SAMPLES_BYTES);
-        if (cd_samples[i] == NULL)
-        {
-            while (true)
-            {
-                DEBUG_PRINT("not enough memory for cache!\n");
-            }
-        }
-    }
 
     // Generate CD scrambling key
     for (int i = 6; i < 1176; i++)
@@ -136,6 +115,7 @@ void i2s_data_thread()
         }
     }
 
+    // Mount SD card
     pSD = sd_get_by_num(0);
     fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
     if (FR_OK != fr)
@@ -149,7 +129,7 @@ void i2s_data_thread()
     channel_config_set_write_increment(&c, false);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
     channel_config_set_dreq(&c, DREQ_PIO0_TX0);
-    dma_channel_configure(channel, &c, &pio0->txf[I2S_DATA_SM], pio_samples[0], CD_SAMPLES * 2, false);
+    dma_channel_configure(channel, &c, &pio0->txf[SM::c_i2sData], pio_samples[0], c_cdSamples * 2, false);
 
     core_ready[1] = true;
 
@@ -174,7 +154,8 @@ void i2s_data_thread()
 
         if (loadedImageIndex != imageIndex)
         {
-            picostation::cueparser::loadImage(&fil, target_Cues[imageIndex], target_Bins[imageIndex]);
+            discImage.load(&fil, target_Cues[imageIndex], target_Bins[imageIndex]);
+            
             loadedImageIndex = imageIndex;
             memset(cachedSectors, -1, sizeof(cachedSectors));
             sector_loaded[0] = -1;
@@ -182,8 +163,8 @@ void i2s_data_thread()
             roundRobinCacheIndex = 0;
             buffer_for_dma = 1;
             buffer_for_sd_read = 0;
-            memset(pio_samples[0], 0, CD_SAMPLES_BYTES * 2);
-            memset(pio_samples[1], 0, CD_SAMPLES_BYTES * 2);
+            memset(pio_samples[0], 0, c_cdSamplesBytes * 2);
+            memset(pio_samples[1], 0, c_cdSamplesBytes * 2);
         }
 
         if (buffer_for_dma != buffer_for_sd_read)
@@ -198,8 +179,8 @@ void i2s_data_thread()
                 }
             }
             int cacheHit = -1;
-            int sector_to_search = sector_t < 4650 ? (sector_t % SECTOR_CACHE) + 4650 : sector_t;
-            for (int i = 0; i < SECTOR_CACHE; i++)
+            int sector_to_search = sector_t < 4650 ? (sector_t % c_sectorCache) + 4650 : sector_t;
+            for (int i = 0; i < c_sectorCache; i++)
             {
                 if (cachedSectors[i] == sector_to_search)
                 {
@@ -220,21 +201,21 @@ void i2s_data_thread()
                     }
                 }
 
-                fr = f_read(&fil, cd_samples[roundRobinCacheIndex], CD_SAMPLES_BYTES, &bytesRead);
+                fr = f_read(&fil, cd_samples[roundRobinCacheIndex], c_cdSamplesBytes, &bytesRead);
                 if (FR_OK != fr)
                     panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
 
                 cachedSectors[roundRobinCacheIndex] = sector_to_search;
                 cacheHit = roundRobinCacheIndex;
-                roundRobinCacheIndex = (roundRobinCacheIndex + 1) % SECTOR_CACHE;
+                roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCache;
             }
 
             if (sector_t >= 4650)
             {
-                for (int i = 0; i < CD_SAMPLES * 2; i++)
+                for (int i = 0; i < c_cdSamples * 2; i++)
                 {
                     uint32_t i2s_data;
-                    if (is_data_track[current_logical_track])
+                    if ( discImage.isDataTrack(current_logical_track) )
                     {
                         i2s_data = (cd_samples[cacheHit][i] ^ CD_scrambling_key[i]) << 8;
                     }
@@ -253,7 +234,7 @@ void i2s_data_thread()
             }
             else
             {
-                memset(pio_samples[buffer_for_sd_read], 0, CD_SAMPLES_BYTES * 2);
+                memset(pio_samples[buffer_for_sd_read], 0, c_cdSamplesBytes * 2);
             }
 
             sector_loaded[buffer_for_sd_read] = sector_t;
@@ -283,8 +264,8 @@ void i2s_data_thread()
 
 void psnee()
 {
-    if (sector_t > 0 && sector_t < PSNEE_SECTOR_LIMIT &&
-        SENS_data[SENS::GFS] && !soct && hasData &&
+    if (sector_t > 0 && sector_t < c_psneeSectorLimit &&
+        SENS_data[SENS::GFS] && !soct && discImage.hasData() &&
         ((time_us_64() - psneeTimer) > 13333))
     {
         psnee_hysteresis++;
@@ -299,7 +280,7 @@ void psnee()
         psneeTimer = time_us_64();
         while ((time_us_64() - psneeTimer) < 90000)
         {
-            if (sector >= PSNEE_SECTOR_LIMIT || soct)
+            if (sector >= c_psneeSectorLimit || soct)
             {
                 goto abort_psnee;
             }
@@ -312,7 +293,7 @@ void psnee()
                 psneeTimer = time_us_64();
                 while ((time_us_64() - psneeTimer) < 4000)
                 {
-                    if (sector >= PSNEE_SECTOR_LIMIT || soct)
+                    if (sector >= c_psneeSectorLimit || soct)
                     {
                         goto abort_psnee;
                     }
@@ -322,7 +303,7 @@ void psnee()
             psneeTimer = time_us_64();
             while ((time_us_64() - psneeTimer) < 90000)
             {
-                if (sector >= PSNEE_SECTOR_LIMIT || soct)
+                if (sector >= c_psneeSectorLimit || soct)
                 {
                     goto abort_psnee;
                 }

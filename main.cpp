@@ -16,6 +16,7 @@
 #include "pico/stdlib.h"
 
 #include "cmd.h"
+#include "disc_image.h"
 #include "i2s.h"
 #include "logging.h"
 #include "main.pio.h"
@@ -30,7 +31,6 @@
 #endif
 
 // globals
-volatile bool hasData = 0;
 volatile uint latched = 0;
 volatile bool soct = 0;
 
@@ -47,9 +47,6 @@ volatile uint sector_sending = !0;
 uint64_t subq_start_time = 0;
 int subq_delay = 0;
 
-volatile int num_logical_tracks = 0;
-int *logical_track_to_sector;
-bool *is_data_track;
 volatile int current_logical_track = 0;
 
 int prevMode = 1;
@@ -90,6 +87,10 @@ volatile bool SENS_data[16] = {
     0, // $EX - OV64
     0  // $FX - 0
 };
+
+constexpr uint c_TrackMoveTime = 15; // uS
+
+picostation::DiscImage discImage;
 
 void clampSectorTrackLimits();
 void initialize();
@@ -186,19 +187,19 @@ void initialize()
     gpio_set_input_hysteresis_enabled(Pin::XLAT, true);
     gpio_set_input_hysteresis_enabled(Pin::CMD_CK, true);
 
-    uint scor_offset = pio_add_program(pio1, &scor_program);
     uint i2s_pio_offset = pio_add_program(pio0, &i2s_data_program);
+    subq_offset = pio_add_program(pio0, &subq_program);
+    i2s_data_program_init(pio0, SM::c_i2sData, i2s_pio_offset, Pin::DA15, Pin::DA16);
+
+    uint scor_offset = pio_add_program(pio1, &scor_program);
     mechachon_sm_offset = pio_add_program(pio1, &mechacon_program);
     soct_offset = pio_add_program(pio1, &soct_program);
-    subq_offset = pio_add_program(pio1, &subq_program);
-
-    scor_program_init(pio1, SCOR_SM, scor_offset, Pin::SCOR);
-    i2s_data_program_init(pio0, I2S_DATA_SM, i2s_pio_offset, Pin::DA15);
-    mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, Pin::CMD_DATA);
+    scor_program_init(pio1, SM::c_scor, scor_offset, Pin::SCOR);
+    mechacon_program_init(pio1, SM::c_mechacon, mechachon_sm_offset, Pin::CMD_DATA);
 
     uint64_t startTime = time_us_64();
 
-    pio_enable_sm_mask_in_sync(pio0, (1u << I2S_DATA_SM));
+    pio_sm_set_enabled(pio0, SM::c_i2sData, true);
     pwm_set_mask_enabled((1 << slice_num_LRCK) | (1 << slice_num_DA15) | (1 << slice_num_CLOCK));
 
     gpio_set_dir(Pin::RESET, GPIO_OUT);
@@ -225,7 +226,7 @@ void initialize()
     DEBUG_PRINT("ON!\n");
     multicore_launch_core1(i2s_data_thread);
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
-    pio_enable_sm_mask_in_sync(pio1, (1u << SCOR_SM) | (1u << MECHACON_SM));
+    pio_enable_sm_mask_in_sync(pio1, (1u << SM::c_scor) | (1u << SM::c_mechacon));
 }
 
 void maybeChangeMode()
@@ -259,11 +260,12 @@ void maybeReset()
     if (gpio_get(Pin::RESET) == 0)
     {
         DEBUG_PRINT("RESET!\n");
-        pio_sm_set_enabled(pio1, SUBQ_SM, false);
-        pio_sm_set_enabled(pio1, SOCT_SM, false);
-        pio_sm_set_enabled(pio1, MECHACON_SM, false);
+        pio_sm_set_enabled(pio0, SM::c_subq, false);
+        pio_sm_set_enabled(pio1, SM::c_soct, false);
+        pio_sm_set_enabled(pio1, SM::c_mechacon, false);
+        pio_enable_sm_mask_in_sync(pio1, (1u << SM::c_scor) | (1u << SM::c_mechacon));
 
-        mechacon_program_init(pio1, MECHACON_SM, mechachon_sm_offset, Pin::CMD_DATA);
+        mechacon_program_init(pio1, SM::c_mechacon, mechachon_sm_offset, Pin::CMD_DATA);
         subq_delay = 0;
         soct = 0;
 
@@ -289,7 +291,7 @@ void maybeReset()
             }
         }
 
-        pio_sm_set_enabled(pio1, MECHACON_SM, true);
+        pio_sm_set_enabled(pio1, SM::c_mechacon, true);
     }
 }
 
@@ -309,9 +311,9 @@ void set_sens(uint what, bool new_value)
 
 void updateMechSens()
 {
-    while (!pio_sm_is_rx_fifo_empty(pio1, MECHACON_SM))
+    while (!pio_sm_is_rx_fifo_empty(pio1, SM::c_mechacon))
     {
-        uint c = pio_sm_get_blocking(pio1, MECHACON_SM) >> 24;
+        uint c = pio_sm_get_blocking(pio1, SM::c_mechacon) >> 24;
         latched >>= 8;
         latched |= c << 16;
         select_sens(latched >> 20);
@@ -374,13 +376,13 @@ int main()
             // waiting for RX FIFO entry does not work.
             sleep_us(300);
             soct = 0;
-            pio_sm_set_enabled(pio1, SOCT_SM, false);
+            pio_sm_set_enabled(pio1, SM::c_soct, false);
             subq_start_time = time_us_64();
             restore_interrupts(interrupts);
         }
         else if (sled_move_direction == SledMove::FORWARD)
         {
-            if ((time_us_64() - sled_timer) > TRACK_MOVE_TIME_US)
+            if ((time_us_64() - sled_timer) > c_TrackMoveTime)
             {
                 sled_timer = time_us_64();
                 track++;
@@ -396,7 +398,7 @@ int main()
         }
         else if (sled_move_direction == SledMove::REVERSE)
         {
-            if ((time_us_64() - sled_timer) > TRACK_MOVE_TIME_US)
+            if ((time_us_64() - sled_timer) > c_TrackMoveTime)
             {
                 sled_timer = time_us_64();
                 track--;

@@ -3,7 +3,7 @@
 #include "pico/stdlib.h"
 
 // GPIO pinouts
-struct Pin
+namespace Pin
 {
     enum : uint
     {
@@ -14,7 +14,8 @@ struct Pin
         DOOR = 6,
         RESET = 7,
         SENS = 14,
-        DA15 = 15, // next pin is DA16
+        DA15 = 15,
+        DA16 = 16,
         LRCK = 17,
         SCOR = 18,
         SQSO = 19,
@@ -25,44 +26,21 @@ struct Pin
 };
 // C2PO, WFCK is always GND
 
-// PIO0
-constexpr uint I2S_DATA_SM = 0;
-
-// PIO1
-constexpr uint SCOR_SM = 0;
-constexpr uint MECHACON_SM = 1;
-constexpr uint SOCT_SM = 2;
-constexpr uint SUBQ_SM = 3;
-
-//
-constexpr size_t CD_SAMPLES = 588;
-constexpr size_t CD_SAMPLES_BYTES = CD_SAMPLES * 2 * 2;
-
-//
-constexpr uint TRACK_MOVE_TIME_US = 15;
-
-//
-constexpr int PSNEE_SECTOR_LIMIT = 4500;
-constexpr int SECTOR_CACHE = 50;
-
-constexpr int NUM_IMAGES = 4;
-
-struct Command
+namespace SM
 {
-    enum : uint
-    {
-        SLED = 0x2,
-        AUTOSEQ = 0x4,
-        JUMP_TRACK = 0x7,
-        SOCT = 0x8,
-        SPEED = 0x9,
-        COUNT_TRACK = 0xb,
-        SPINDLE = 0xe,
-        CUSTOM = 0xf
-    };
-};
+    // PIO0
+    constexpr uint c_i2sData = 0;
+    constexpr uint c_subq = 1;
 
-struct SENS
+    // PIO1
+    constexpr uint c_scor = 0;
+    constexpr uint c_mechacon = 1;
+    constexpr uint c_soct = 2;
+}
+
+constexpr int c_numImages = 1;
+
+namespace SENS
 {
     enum : uint
     {
@@ -76,9 +54,9 @@ struct SENS
         COUT = 0xc,
         OV64 = 0xe
     };
-};
+}
 
-struct SledMove
+namespace SledMove
 {
     enum : uint
     {
@@ -86,4 +64,4 @@ struct SledMove
         REVERSE = 0x11,
         FORWARD = 0x22
     };
-};
+}
