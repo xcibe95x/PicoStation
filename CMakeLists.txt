@@ -10,7 +10,7 @@ add_executable(picostation)
 
 target_sources(picostation PRIVATE cmd.cpp disc_image.cpp hw_config.cpp i2s.cpp main.cpp subq.cpp utils.cpp)
 
-add_subdirectory(FatFs_SPI build)
+add_subdirectory(no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
 
 pico_enable_stdio_usb(picostation 1)
 
