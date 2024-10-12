@@ -300,7 +300,7 @@ void select_sens(uint new_sens)
     current_sens = new_sens;
 }
 
-void set_sens(uint what, bool new_value)
+void __time_critical_func(set_sens)(uint what, bool new_value)
 {
     SENS_data[what] = new_value;
     if (what == current_sens)
@@ -309,7 +309,7 @@ void set_sens(uint what, bool new_value)
     }
 }
 
-void updateMechSens()
+void __time_critical_func(updateMechSens)()
 {
     while (!pio_sm_is_rx_fifo_empty(pio1, SM::c_mechacon))
     {
@@ -355,7 +355,6 @@ int main()
         // Update latching, output SENS
         if (mutex_try_enter(&mechacon_mutex, 0))
         {
-
             updateMechSens();
             mutex_exit(&mechacon_mutex);
         }
@@ -415,6 +414,7 @@ int main()
         {
             if (sector < 4650 && (time_us_64() - subq_start_time) > 6333)
             {
+                set_sens(SENS::XBUSY, 0);
                 subq_start_time = time_us_64();
                 start_subq();
                 sector++;

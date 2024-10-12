@@ -18,6 +18,6 @@ pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/main.pio)
 
 target_link_libraries(picostation PRIVATE FatFs_SPI hardware_dma hardware_pio hardware_pwm hardware_vreg pico_multicore pico_stdlib)
 
-pico_set_binary_type(picostation copy_to_ram)
+#pico_set_binary_type(picostation copy_to_ram)
 
 pico_add_extra_outputs(picostation)

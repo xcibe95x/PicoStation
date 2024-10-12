@@ -13,6 +13,7 @@ namespace picostation
         FRESULT load(FIL *fil, const TCHAR *targetCue, const TCHAR *targetBin); // Abstract file access, remove bin once cue properly parsed
 
         // getData
+        void generateSubQ(uint8_t *subqdata, int sector);
         int numLogicalTracks() { return m_numLogicalTracks; }
         int logicalTrackToSector(int logicalTrack) { return m_logicalTrackToSector[logicalTrack]; };
         bool hasData() { return m_hasData; };
