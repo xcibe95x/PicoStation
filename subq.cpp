@@ -18,11 +18,10 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern volatile uint subq_offset;
-extern volatile int current_logical_track;
-extern volatile int sector;
-
 extern picostation::DiscImage discImage;
+
+extern volatile int sector;
+extern uint subq_offset;
 
 void printf_subq(uint8_t *subqdata)
 {

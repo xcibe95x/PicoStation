@@ -50,11 +50,11 @@ volatile uint jump_track = 0;
 
 void set_sens(uint what, bool new_value);
 
-void autosequence()
+inline void autosequence()
 {
-    int subcommand = (latched & 0x0F0000) >> 16;
-    uint timer_range = (latched & 0x8) >> 3;
-    uint cancel_timer = (latched & 0xF) >> 4;
+    const int subcommand = (latched & 0x0F0000) >> 16;
+    //uint timer_range = (latched & 0x8) >> 3;
+    //uint cancel_timer = (latched & 0xF) >> 4;
 
     set_sens(SENS::XBUSY, (subcommand != 0));
 
@@ -133,10 +133,10 @@ void autosequence()
     sector_for_track_update = sector;
 }
 
-void sled_move()
+inline void sled_move()
 {
-    int subcommand_move = (latched & 0x030000) >> 16;
-    int subcommand_track = (latched & 0x0C0000) >> 16;
+    const int subcommand_move = (latched & 0x030000) >> 16;
+    const int subcommand_track = (latched & 0x0C0000) >> 16;
     switch (subcommand_move)
     {
     case 2:
@@ -174,16 +174,16 @@ void sled_move()
     }
 }
 
-void spindle()
+inline void spindle()
 {
-    int subcommand = (latched & 0x0F0000) >> 16;
+    const int subcommand = (latched & 0x0F0000) >> 16;
 
     SENS_data[SENS::GFS] = (subcommand == 6);
 }
 
-void interrupt_xlat(uint gpio, uint32_t events)
+void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
 {
-    int command = (latched & 0xF00000) >> 20;
+    const int command = (latched & 0xF00000) >> 20;
 
     switch (command)
     {
@@ -208,11 +208,11 @@ void interrupt_xlat(uint gpio, uint32_t events)
         pio_sm_put_blocking(pio1, SM::c_soct, 0xFFFFFFF);
         break;
     case Command::SPEED: // $9X commands - 1x/2x speed setting
-        if ((latched & 0xF40000) == 0x940000 && mode == 1)
+        if ((latched & 0xF40000) == 0x940000)
         {
             mode = 2;
         }
-        else if ((latched & 0xF40000) == 0x900000 && mode == 2)
+        else if ((latched & 0xF40000) == 0x900000)
         {
             mode = 1;
         }
@@ -226,7 +226,7 @@ void interrupt_xlat(uint gpio, uint32_t events)
         spindle();
         break;
 
-    case 0x0: // nop
+    /*case 0x0: // nop
         break;
 
     case Command::CUSTOM: // picostation
@@ -247,7 +247,7 @@ void interrupt_xlat(uint gpio, uint32_t events)
             imageIndex = (imageIndex + 1) % c_numImages;
             break;
         }
-        break;
+        break;*/
     }
 
     latched = 0;

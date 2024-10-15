@@ -2,4 +2,4 @@
 
 #include "pico/stdlib.h"
 
-void interrupt_xlat(uint gpio, uint32_t events);
+void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events);

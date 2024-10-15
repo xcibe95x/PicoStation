@@ -39,7 +39,6 @@ volatile int imageIndex = 0;
 int loadedImageIndex = -1;
 
 extern volatile int sector;
-extern volatile int current_logical_track;
 extern volatile int sector_sending;
 extern volatile bool SENS_data[16];
 extern volatile bool soct;
@@ -49,14 +48,6 @@ extern volatile bool core_ready[2];
 uint64_t psneeTimer;
 int psnee_hysteresis = 0;
 
-FRESULT fr;
-FIL fil;
-
-static constexpr int c_psneeSectorLimit = 4500;
-constexpr size_t c_cdSamples = 588;
-constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
-constexpr int c_sectorCache = 50;
-
 extern picostation::DiscImage discImage;
 
 void i2s_data_thread();
@@ -64,16 +55,14 @@ void psnee(int sector);
 
 // External functions, in main.c
 void select_sens(uint8_t new_sens);
-void updateMechSens();
-
-char SCExData[][44] = {
-    {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
-    {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
-    {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
-};
+void __time_critical_func(updateMechSens)();
 
 void i2s_data_thread()
 {
+    static constexpr size_t c_cdSamples = 588;
+    static constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
+    static constexpr int c_sectorCache = 50;
+
     // TODO: separate PSNEE, cue parse, and i2s functions
     uint bytesRead;
     uint32_t pio_samples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0, 0};
@@ -89,7 +78,10 @@ void i2s_data_thread()
     uint16_t cd_samples[c_sectorCache][c_cdSamplesBytes / sizeof(uint16_t)] = {0};
     uint16_t CD_scrambling_key[1176] = {0};
     int key = 1;
-    int sector_t = -1;
+    int sector_temp = -1;
+
+    FRESULT fr;
+    FIL fil = {0};
 
     // Generate CD scrambling key
     for (int i = 6; i < 1176; i++)
@@ -137,7 +129,7 @@ void i2s_data_thread()
 
     while (true)
     {
-        sector_t = sector;
+        sector_temp = sector;
 
         // Update latching, output SENS
         if (mutex_try_enter(&mechacon_mutex, 0))
@@ -146,8 +138,7 @@ void i2s_data_thread()
             mutex_exit(&mechacon_mutex);
         }
 
-        // PSNEE
-        psnee(sector_t);
+        psnee(sector_temp);
 
         if (loadedImageIndex != imageIndex)
         {
@@ -169,14 +160,14 @@ void i2s_data_thread()
             sector_change_timer = time_us_64();
             while ((time_us_64() - sector_change_timer) < 100)
             {
-                if (sector_t != sector)
+                if (sector_temp != sector)
                 {
-                    sector_t = sector;
+                    sector_temp = sector;
                     sector_change_timer = time_us_64();
                 }
             }
             int cacheHit = -1;
-            int sector_to_search = sector_t < 4650 ? (sector_t % c_sectorCache) + 4650 : sector_t;
+            int sector_to_search = sector_temp < 4650 ? (sector_temp % c_sectorCache) + 4650 : sector_temp;
             for (int i = 0; i < c_sectorCache; i++)
             {
                 if (cachedSectors[i] == sector_to_search)
@@ -209,12 +200,12 @@ void i2s_data_thread()
                 roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCache;
             }
 
-            if (sector_t >= 4650)
+            if (sector_temp >= 4650)
             {
                 for (int i = 0; i < c_cdSamples * 2; i++)
                 {
                     uint32_t i2s_data;
-                    if (discImage.isDataTrack(current_logical_track))
+                    if (discImage.isCurrentTrackData())
                     {
                         i2s_data = (cd_samples[cacheHit][i] ^ CD_scrambling_key[i]) << 8;
                     }
@@ -236,7 +227,7 @@ void i2s_data_thread()
                 memset(pio_samples[buffer_for_sd_read], 0, c_cdSamplesBytes * 2);
             }
 
-            sector_loaded[buffer_for_sd_read] = sector_t;
+            sector_loaded[buffer_for_sd_read] = sector_temp;
             buffer_for_sd_read = (buffer_for_sd_read + 1) % 2;
         }
 
@@ -263,6 +254,14 @@ void i2s_data_thread()
 
 void psnee(int sector)
 {
+    static constexpr int c_psneeSectorLimit = 4500;
+
+    static constexpr char SCExData[][44] = {
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
+    };
+
     if (sector > 0 && sector < c_psneeSectorLimit &&
         SENS_data[SENS::GFS] && !soct && discImage.hasData() &&
         ((time_us_64() - psneeTimer) > 13333))

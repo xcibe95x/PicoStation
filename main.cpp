@@ -42,12 +42,9 @@ volatile uint sled_move_direction = SledMove::STOP;
 
 volatile uint sector = 0;
 volatile uint sector_for_track_update = 0;
-volatile uint sector_sending = !0;
+volatile uint sector_sending = ~0;
 
-uint64_t subq_start_time = 0;
 int subq_delay = 0;
-
-volatile int current_logical_track = 0;
 
 int prevMode = 1;
 volatile int mode = 1;
@@ -58,12 +55,12 @@ volatile bool core_ready[2] = {false, false};
 uint i2s_pio_offset;
 uint mechachon_sm_offset;
 uint soct_offset;
-volatile uint subq_offset;
+uint subq_offset;
 
 // PWM Config
 pwm_config cfg_CLOCK;
-pwm_config cfg_LRCK;
 pwm_config cfg_DA15;
+pwm_config cfg_LRCK;
 uint slice_num_CLOCK;
 uint slice_num_DA15;
 uint slice_num_LRCK;
@@ -96,9 +93,8 @@ void clampSectorTrackLimits();
 void initialize();
 void maybeChangeMode();
 void maybeReset();
-void select_sens(uint new_sens);
 void set_sens(uint what, bool new_value);
-void updateMechSens();
+void __time_critical_func(updateMechSens)();
 
 void clampSectorTrackLimits()
 {
@@ -119,6 +115,16 @@ void clampSectorTrackLimits()
 
 void initialize()
 {
+#if DEBUG_LOGGING_ENABLED
+    stdio_init_all();
+    stdio_set_chars_available_callback(NULL, NULL);
+    sleep_ms(1250);
+#endif
+    DEBUG_PRINT("Initializing...\n");
+
+    vreg_set_voltage(VREG_VOLTAGE_1_15);
+    sleep_ms(100);
+
     srand(time(NULL));
     mutex_init(&mechacon_mutex);
 
@@ -295,11 +301,6 @@ void maybeReset()
     }
 }
 
-void select_sens(uint new_sens)
-{
-    current_sens = new_sens;
-}
-
 void __time_critical_func(set_sens)(uint what, bool new_value)
 {
     SENS_data[what] = new_value;
@@ -316,30 +317,22 @@ void __time_critical_func(updateMechSens)()
         uint c = pio_sm_get_blocking(pio1, SM::c_mechacon) >> 24;
         latched >>= 8;
         latched |= c << 16;
-        select_sens(latched >> 20);
-        gpio_put(Pin::SENS, SENS_data[latched >> 20]);
+        current_sens = c >> 4;
+        gpio_put(Pin::SENS, SENS_data[c >> 4]);
     }
 }
 
 int main()
 {
-    vreg_set_voltage(VREG_VOLTAGE_1_15);
-    sleep_ms(100);
+    uint64_t subq_delay_time = 0;
+    uint64_t subq_start_time = 0;
 
-#if DEBUG_LOGGING_ENABLED
-    stdio_init_all();
-    stdio_set_chars_available_callback(NULL, NULL);
-    sleep_ms(1250);
-#endif
+    int sectors_per_track_i = sectors_per_track(0);
 
     set_sys_clock_khz(271200, true);
     sleep_ms(5);
 
-    DEBUG_PRINT("Initializing...\n");
     initialize();
-    int sectors_per_track_i = sectors_per_track(0);
-    uint64_t subq_delay_time = 0;
-
     core_ready[0] = true;
 
     while (!core_ready[1])

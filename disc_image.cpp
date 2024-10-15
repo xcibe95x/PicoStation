@@ -18,13 +18,11 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern volatile int current_logical_track;
-
 static void getParentPath(const TCHAR *path, TCHAR *parentPath)
 {
     strcpy(parentPath, path);
-    char *lastSlash = strrchr(parentPath, '/') + 1;
-    char *lastBackslash = strrchr(parentPath, '\\') + 1;
+    char *lastSlash = strrchr(parentPath, '/');
+    char *lastBackslash = strrchr(parentPath, '\\');
     if (lastBackslash && (!lastSlash || lastBackslash > lastSlash))
     {
         lastSlash = lastBackslash;
@@ -41,41 +39,58 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath)
 
 void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
 {
+    // Sub-Q data format:
+    // 0: CONTROL[4], ADR[4]
+    // 1: TNO/Track number[8] BCD
+    // DATA-Q:
+    //
+    // Mode 1: ADR = 1
+    // 2: X[8] BCD
+    // 3: MIN[8] BCD
+    // 4: SEC[8] BCD
+    // 5: FRAME[8] BCD
+    // 6: ZERO[8]
+    // 7: AMIN[8] BCD
+    // 8: ASEC[8] BCD
+    // 9: AFRAME[8] BCD
+    // 10-11: CRC[16]
+
+    int sector_track;
+
     if (sector < 4500)
     {
-        int subq_entry = sector % (3 + m_numLogicalTracks);
+        const int subq_entry = sector % (3 + m_numLogicalTracks);
 
         if (subq_entry == 0)
         {
             subqdata[0] = m_hasData ? 0x61 : 0x21;
             subqdata[1] = 0x00;
-            subqdata[2] = 0xA0;
-            subqdata[7] = 0x01;
-            subqdata[8] = 0x20;
-            subqdata[9] = 0x00;
+            subqdata[2] = 0xA0; // PMIN = TNO FIRST, PSEC = 0?, PFRAME = 0
+            subqdata[7] = 0x01; // pmin
+            subqdata[8] = 0x20; // psec
+            subqdata[9] = 0x00; // pframe
         }
         else if (subq_entry == 1)
         {
             subqdata[0] = m_hasData ? 0x61 : 0x21;
             subqdata[1] = 0x00;
-            subqdata[2] = 0xA1;
-            subqdata[7] = tobcd(m_numLogicalTracks);
-            subqdata[8] = 0x00;
-            subqdata[9] = 0x00;
+            subqdata[2] = 0xA1;                      // PMIN = TNO LAST, PSEC = 0, PFRAME = 0
+            subqdata[7] = tobcd(m_numLogicalTracks); // pmin
+            subqdata[8] = 0x00;                      // psec
+            subqdata[9] = 0x00;                      // pframe
         }
         else if (subq_entry == 2)
         {
-            int sector_lead_out = m_logicalTrackToSector[m_numLogicalTracks + 1] - 4500;
+            const int sector_lead_out = m_logicalTrackToSector[m_numLogicalTracks + 1] - 4500;
             subqdata[0] = m_hasData ? 0x61 : 0x21;
             subqdata[1] = 0x00;
-            subqdata[2] = 0xA2;
-            subqdata[7] = tobcd(sector_lead_out / 75 / 60);
-            subqdata[8] = tobcd((sector_lead_out / 75) % 60);
-            subqdata[9] = tobcd(sector_lead_out % 75);
+            subqdata[2] = 0xA2;                               // PMIN = PSEC = PFRAME = Lead-out
+            subqdata[7] = tobcd(sector_lead_out / 75 / 60);   // pmin
+            subqdata[8] = tobcd((sector_lead_out / 75) % 60); // psec
+            subqdata[9] = tobcd(sector_lead_out % 75);        // pframe
         }
         else if (subq_entry > 2)
         {
-            int sector_track;
             int logical_track = subq_entry - 2;
             if (logical_track == 1)
             {
@@ -87,15 +102,15 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
             }
             subqdata[0] = m_isDataTrack[logical_track] ? 0x41 : 0x01;
             subqdata[1] = 0x00;
-            subqdata[2] = tobcd(logical_track);
-            subqdata[7] = tobcd(sector_track / 75 / 60);
-            subqdata[8] = tobcd((sector_track / 75) % 60);
-            subqdata[9] = tobcd(sector_track % 75);
+            subqdata[2] = tobcd(logical_track);            // Track numbers
+            subqdata[7] = tobcd(sector_track / 75 / 60);   // min
+            subqdata[8] = tobcd((sector_track / 75) % 60); // sec
+            subqdata[9] = tobcd(sector_track % 75);        // frame
         }
 
-        subqdata[3] = tobcd(sector / 75 / 60);
-        subqdata[4] = tobcd((sector / 75) % 60);
-        subqdata[5] = tobcd(sector % 75);
+        subqdata[3] = tobcd(sector / 75 / 60);   // min
+        subqdata[4] = tobcd((sector / 75) % 60); // sec
+        subqdata[5] = tobcd(sector % 75);        // frame
         subqdata[6] = 0x00;
         subqdata[10] = 0x00;
         subqdata[11] = 0x00;
@@ -111,30 +126,19 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
                 break;
             }
         }
-        int sector_track = sector - m_logicalTrackToSector[logical_track];
-        int sector_abs = (sector - 4500);
-        int sector_track_after_pause;
-
-        if (logical_track == 1)
-        {
-            sector_track_after_pause = sector_track - 150;
-        }
-        else
-        {
-            sector_track_after_pause = sector_track;
-        }
-
-        current_logical_track = logical_track;
+        sector_track = sector - m_logicalTrackToSector[logical_track];
+        const int sector_abs = (sector - 4500);
+        m_currentLogicalTrack = logical_track;
 
         subqdata[0] = m_isDataTrack[logical_track] ? 0x41 : 0x01;
 
         if (logical_track == m_numLogicalTracks + 1)
         {
-            subqdata[1] = 0xAA;
+            subqdata[1] = 0xAA; // Lead-out track
         }
         else
         {
-            subqdata[1] = tobcd(logical_track);
+            subqdata[1] = tobcd(logical_track); // Track numbers
         }
         if (sector_track < 150 && logical_track == 1)
         { // 2 sec pause track
@@ -145,6 +149,8 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
         }
         else
         {
+            const int sector_track_after_pause = (logical_track == 1) ? sector_track - 150 : sector_track;
+
             subqdata[2] = 0x01;
             subqdata[3] = tobcd(sector_track_after_pause / 75 / 60);   // min
             subqdata[4] = tobcd((sector_track_after_pause / 75) % 60); // sec
@@ -166,7 +172,8 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
     m_numLogicalTracks = 0;
     FRESULT fr;
     /*TCHAR parentPath[128];
-    getParentPath(targetCue, parentPath);*/
+    getParentPath(targetCue, parentPath);
+    DEBUG_PRINT("Parent path: %s\n", parentPath);*/
 
     if (&fil)
     {
