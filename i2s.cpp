@@ -36,7 +36,6 @@ const TCHAR target_Cues[c_numImages][128] = {
 };
 
 volatile int imageIndex = 0;
-int loadedImageIndex = -1;
 
 extern volatile int sector;
 extern volatile int sector_sending;
@@ -52,9 +51,6 @@ extern picostation::DiscImage discImage;
 
 void i2s_data_thread();
 void psnee(int sector);
-
-// External functions, in main.c
-void select_sens(uint8_t new_sens);
 void __time_critical_func(updateMechSens)();
 
 void i2s_data_thread()
@@ -79,6 +75,7 @@ void i2s_data_thread()
     uint16_t CD_scrambling_key[1176] = {0};
     int key = 1;
     int sector_temp = -1;
+    int loadedImageIndex = -1;
 
     FRESULT fr;
     FIL fil = {0};

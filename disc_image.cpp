@@ -229,7 +229,7 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
         m_isDataTrack[logical_track] = strcmp("AUDIO", token);
         if (m_isDataTrack[logical_track])
         {
-            m_hasData = 1;
+            m_hasData = true;
         }
         f_gets(buf, 128, fil);
         token = strtok(buf, " ");

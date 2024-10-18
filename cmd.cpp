@@ -201,7 +201,7 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
         break;
 
     case Command::SOCT: // $8X commands - MODE specification
-        soct = 1;
+        soct = true;
         pio_sm_set_enabled(pio0, SM::c_subq, false);
         soct_program_init(pio1, SM::c_soct, soct_offset, Pin::SQSO, Pin::SQCK);
         pio_sm_set_enabled(pio1, SM::c_soct, true);

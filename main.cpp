@@ -30,40 +30,38 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-// globals
-volatile uint latched = 0;
-volatile bool soct = 0;
+volatile uint latched = 0;  // Mechacon command latch
+volatile bool soct = false; // Serial Read Out Circuit
 
 volatile uint count_track = 0;
 volatile uint track = 0;
 volatile uint original_track = 0;
-volatile uint64_t sled_timer = 0;
+
 volatile uint sled_move_direction = SledMove::STOP;
 
 volatile uint sector = 0;
 volatile uint sector_for_track_update = 0;
 volatile uint sector_sending = ~0;
 
-int subq_delay = 0;
+static bool subq_delay = false;
 
-int prevMode = 1;
+static int prevMode = 1;
 volatile int mode = 1;
 
 mutex_t mechacon_mutex;
 volatile bool core_ready[2] = {false, false};
 
-uint i2s_pio_offset;
-uint mechachon_sm_offset;
+static uint mechachon_sm_offset;
 uint soct_offset;
 uint subq_offset;
 
 // PWM Config
-pwm_config cfg_CLOCK;
-pwm_config cfg_DA15;
-pwm_config cfg_LRCK;
-uint slice_num_CLOCK;
-uint slice_num_DA15;
-uint slice_num_LRCK;
+static pwm_config cfg_CLOCK;
+static pwm_config cfg_DA15;
+static pwm_config cfg_LRCK;
+static uint slice_num_CLOCK;
+static uint slice_num_DA15;
+static uint slice_num_LRCK;
 
 volatile uint current_sens;
 volatile bool SENS_data[16] = {
@@ -84,8 +82,6 @@ volatile bool SENS_data[16] = {
     0, // $EX - OV64
     0  // $FX - 0
 };
-
-constexpr uint c_TrackMoveTime = 15; // uS
 
 picostation::DiscImage discImage;
 
@@ -157,6 +153,7 @@ void initialize()
     gpio_set_dir(Pin::DA15, GPIO_OUT);
     gpio_set_dir(Pin::CLK, GPIO_OUT);
 
+    // Main clock
     gpio_set_function(Pin::CLK, GPIO_FUNC_PWM);
     slice_num_CLOCK = pwm_gpio_to_slice_num(Pin::CLK);
     cfg_CLOCK = pwm_get_default_config();
@@ -166,6 +163,7 @@ void initialize()
     pwm_init(slice_num_CLOCK, &cfg_CLOCK, false);
     pwm_set_both_levels(slice_num_CLOCK, 1, 1);
 
+    // Data clock
     gpio_set_function(Pin::DA15, GPIO_FUNC_PWM);
     slice_num_DA15 = pwm_gpio_to_slice_num(Pin::DA15);
     cfg_DA15 = pwm_get_default_config();
@@ -176,6 +174,7 @@ void initialize()
     pwm_init(slice_num_DA15, &cfg_DA15, false);
     pwm_set_both_levels(slice_num_DA15, 16, 16);
 
+    // Left/right clock
     gpio_set_function(Pin::LRCK, GPIO_FUNC_PWM);
     slice_num_LRCK = pwm_gpio_to_slice_num(Pin::LRCK);
     cfg_LRCK = pwm_get_default_config();
@@ -272,8 +271,8 @@ void maybeReset()
         pio_enable_sm_mask_in_sync(pio1, (1u << SM::c_scor) | (1u << SM::c_mechacon));
 
         mechacon_program_init(pio1, SM::c_mechacon, mechachon_sm_offset, Pin::CMD_DATA);
-        subq_delay = 0;
-        soct = 0;
+        subq_delay = false;
+        soct = false;
 
         gpio_init(Pin::SQSO);
         gpio_set_dir(Pin::SQSO, GPIO_OUT);
@@ -324,6 +323,9 @@ void __time_critical_func(updateMechSens)()
 
 int main()
 {
+    constexpr uint c_TrackMoveTime = 15; // uS
+
+    uint64_t sled_timer = 0;
     uint64_t subq_delay_time = 0;
     uint64_t subq_start_time = 0;
 
@@ -367,7 +369,7 @@ int main()
             uint interrupts = save_and_disable_interrupts();
             // waiting for RX FIFO entry does not work.
             sleep_us(300);
-            soct = 0;
+            soct = false;
             pio_sm_set_enabled(pio1, SM::c_soct, false);
             subq_start_time = time_us_64();
             restore_interrupts(interrupts);
@@ -431,7 +433,7 @@ int main()
                             track++;
                             sectors_per_track_i = sectors_per_track(track);
                         }
-                        subq_delay = 1;
+                        subq_delay = true;
                         subq_delay_time = time_us_64();
                     }
                 }
@@ -439,14 +441,14 @@ int main()
                 if (subq_delay && (sector >= 4650 && (time_us_64() - subq_delay_time) > 3333))
                 {
                     set_sens(SENS::XBUSY, 0);
-                    subq_delay = 0;
+                    subq_delay = false;
                     start_subq();
                 }
             }
         }
         else
         {
-            subq_delay = 0;
+            subq_delay = false;
         }
     }
 }
