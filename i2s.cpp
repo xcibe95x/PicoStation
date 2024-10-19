@@ -37,15 +37,14 @@ const TCHAR target_Cues[c_numImages][128] = {
 
 volatile int imageIndex = 0;
 
-extern volatile int sector;
+extern int sector;
 extern volatile int sector_sending;
 extern volatile bool SENS_data[16];
-extern volatile bool soct;
+extern bool soct;
 extern mutex_t mechacon_mutex;
 extern volatile bool core_ready[2];
 
-uint64_t psneeTimer;
-int psnee_hysteresis = 0;
+static uint64_t psneeTimer;
 
 extern picostation::DiscImage discImage;
 
@@ -252,12 +251,13 @@ void i2s_data_thread()
 void psnee(int sector)
 {
     static constexpr int c_psneeSectorLimit = 4500;
-
     static constexpr char SCExData[][44] = {
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
     };
+
+    static int psnee_hysteresis = 0;
 
     if (sector > 0 && sector < c_psneeSectorLimit &&
         SENS_data[SENS::GFS] && !soct && discImage.hasData() &&

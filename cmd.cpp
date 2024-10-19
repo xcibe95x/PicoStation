@@ -32,21 +32,25 @@ namespace Command
     };
 }
 
-extern volatile uint latched;
-extern volatile uint count_track;
-extern volatile uint sled_move_direction;
-extern volatile uint track;
-extern volatile uint original_track;
-extern volatile uint sector;
-extern volatile uint sector_for_track_update;
-extern volatile int mode;
+extern uint latched;
+extern uint count_track;
+extern uint track;
+extern uint original_track;
+
+extern uint sled_move_direction;
+
+extern int sector;
+extern int sector_for_track_update;
+
+extern int mode;
+
 extern volatile bool SENS_data[16];
 
 extern volatile bool soct;
-extern volatile uint soct_offset;
+extern uint soct_offset;
 extern volatile uint imageIndex;
 
-volatile uint jump_track = 0;
+static uint jump_track = 0;
 
 void set_sens(uint what, bool new_value);
 

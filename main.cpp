@@ -30,23 +30,22 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-volatile uint latched = 0;  // Mechacon command latch
+uint latched = 0;  // Mechacon command latch
 volatile bool soct = false; // Serial Read Out Circuit
+uint count_track = 0;
+uint track = 0;
+uint original_track = 0;
 
-volatile uint count_track = 0;
-volatile uint track = 0;
-volatile uint original_track = 0;
+uint sled_move_direction = SledMove::STOP;
 
-volatile uint sled_move_direction = SledMove::STOP;
-
-volatile uint sector = 0;
-volatile uint sector_for_track_update = 0;
-volatile uint sector_sending = ~0;
+volatile int sector = 0;
+int sector_for_track_update = 0;
+volatile int sector_sending = -1;
 
 static bool subq_delay = false;
 
 static int prevMode = 1;
-volatile int mode = 1;
+int mode = 1;
 
 mutex_t mechacon_mutex;
 volatile bool core_ready[2] = {false, false};
