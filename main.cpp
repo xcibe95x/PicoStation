@@ -1,3 +1,4 @@
+#include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +37,7 @@ uint countTrack = 0;
 uint track = 0;
 uint originalTrack = 0;
 
-uint sledMoveDirection = SledMove::STOP;
+int sledMoveDirection = SledMove::STOP;
 
 volatile int sector = 0;
 int sectorForTrackUpdate = 0;
@@ -330,7 +331,8 @@ void __time_critical_func(updateMechSens)()
 
 int main()
 {
-    constexpr uint c_TrackMoveTime = 15; // uS
+    static constexpr uint c_MaxTrackMoveTime = 15;   // uS
+    static constexpr uint c_MaxSubqDelayTime = 3333; // uS
 
     uint64_t sledTimer = 0;
     uint64_t subqDelayTime = 0;
@@ -378,43 +380,39 @@ int main()
             pio_sm_set_enabled(pio1, SM::c_soct, false);
             restore_interrupts(interrupts);
         }
-        else if (sledMoveDirection == SledMove::FORWARD)
+        else if (sledMoveDirection != SledMove::STOP)
         {
-            if ((time_us_64() - sledTimer) > c_TrackMoveTime)
+            if ((time_us_64() - sledTimer) > c_MaxTrackMoveTime)
             {
-                sledTimer = time_us_64();
-                track++;
+                track += sledMoveDirection; // +1 or -1
                 sector = trackToSector(track);
                 sectorForTrackUpdate = sector;
 
-                if ((track - originalTrack) >= countTrack)
+                const int tracksMoved = track - originalTrack;
+                if (abs(tracksMoved) >= countTrack)
                 {
                     originalTrack = track;
                     setSens(SENS::COUT, !sensData[SENS::COUT]);
                 }
-            }
-        }
-        else if (sledMoveDirection == SledMove::REVERSE)
-        {
-            if ((time_us_64() - sledTimer) > c_TrackMoveTime)
-            {
+
                 sledTimer = time_us_64();
-                track--;
-                sector = trackToSector(track);
-                sectorForTrackUpdate = sector;
-                if ((originalTrack - track) >= countTrack)
-                {
-                    originalTrack = track;
-                    setSens(SENS::COUT, !sensData[SENS::COUT]);
-                }
             }
         }
         else if (sensData[SENS::GFS])
         {
-            if (sectorSending == sector && !subqDelay)
+            if (subqDelay)
+            {
+                if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime)
+                {
+                    setSens(SENS::XBUSY, 0);
+                    subqDelay = false;
+                    start_subq(sector);
+                }
+            }
+            else if (sectorSending == sector)
             {
                 sector++;
-                if ((sector - sectorForTrackUpdate) >= sectorPerTrackI)
+                if ((sector - sectorForTrackUpdate) >= sectorPerTrackI) // Moved to next track?
                 {
                     sectorForTrackUpdate = sector;
                     track++;
@@ -422,13 +420,6 @@ int main()
                 }
                 subqDelay = true;
                 subqDelayTime = time_us_64();
-            }
-
-            if (subqDelay && (time_us_64() - subqDelayTime) > 3333)
-            {
-                setSens(SENS::XBUSY, 0);
-                subqDelay = false;
-                start_subq(sector);
             }
         }
     }

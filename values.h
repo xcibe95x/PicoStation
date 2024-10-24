@@ -58,10 +58,10 @@ namespace SENS
 
 namespace SledMove
 {
-    enum : uint
+    enum : int
     {
-        STOP = 0x00,
-        REVERSE = 0x11,
-        FORWARD = 0x22
+        REVERSE = -1,
+        STOP = 0,
+        FORWARD = 1
     };
 }

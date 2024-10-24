@@ -37,7 +37,7 @@ extern uint countTrack;
 extern uint track;
 extern uint originalTrack;
 
-extern uint sledMoveDirection;
+extern int sledMoveDirection;
 
 extern volatile int sector;
 extern int sectorForTrackUpdate;
