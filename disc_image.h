@@ -11,6 +11,7 @@ namespace picostation
         ~DiscImage() {};
 
         FRESULT load(FIL *fil, const TCHAR *targetCue, const TCHAR *targetBin); // Abstract file access, remove bin once cue properly parsed
+        FRESULT loadv2(const TCHAR *targetCue);
 
         // getData
         void generateSubQ(uint8_t *subqdata, int sector);

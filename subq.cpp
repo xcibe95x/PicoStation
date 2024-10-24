@@ -20,8 +20,7 @@
 
 extern picostation::DiscImage discImage;
 
-extern volatile int sector;
-extern uint subq_offset;
+extern uint subqOffset;
 
 void printf_subq(uint8_t *subqdata)
 {
@@ -33,7 +32,7 @@ void printf_subq(uint8_t *subqdata)
 
 static inline void send_subq(uint8_t *subqdata)
 {
-    subq_program_init(pio0, SM::c_subq, subq_offset, Pin::SQSO, Pin::SQCK);
+    subq_program_init(pio0, SM::c_subq, subqOffset, Pin::SQSO, Pin::SQCK);
     pio_sm_set_enabled(pio0, SM::c_subq, true);
 
     uint sub1 = (subqdata[3] << 24) |
@@ -58,7 +57,7 @@ static inline void send_subq(uint8_t *subqdata)
     pio_sm_put_blocking(pio1, SM::c_scor, 1);
 }
 
-void start_subq()
+void start_subq(int sector)
 {
     uint8_t tracksubq[12];
 

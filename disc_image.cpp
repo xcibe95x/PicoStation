@@ -1,5 +1,6 @@
 #include "disc_image.h"
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,7 +76,7 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
             subqdata[0] = m_hasData ? 0x61 : 0x21;
             subqdata[1] = 0x00;
             subqdata[2] = 0xA1;                      // PMIN = TNO LAST, PSEC = 0, PFRAME = 0
-            subqdata[7] = tobcd(m_numLogicalTracks); // pmin
+            subqdata[7] = toBCD(m_numLogicalTracks); // pmin
             subqdata[8] = 0x00;                      // psec
             subqdata[9] = 0x00;                      // pframe
         }
@@ -85,9 +86,9 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
             subqdata[0] = m_hasData ? 0x61 : 0x21;
             subqdata[1] = 0x00;
             subqdata[2] = 0xA2;                               // PMIN = PSEC = PFRAME = Lead-out
-            subqdata[7] = tobcd(sector_lead_out / 75 / 60);   // pmin
-            subqdata[8] = tobcd((sector_lead_out / 75) % 60); // psec
-            subqdata[9] = tobcd(sector_lead_out % 75);        // pframe
+            subqdata[7] = toBCD(sector_lead_out / 75 / 60);   // pmin
+            subqdata[8] = toBCD((sector_lead_out / 75) % 60); // psec
+            subqdata[9] = toBCD(sector_lead_out % 75);        // pframe
         }
         else if (subq_entry > 2)
         {
@@ -102,15 +103,15 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
             }
             subqdata[0] = m_isDataTrack[logical_track] ? 0x41 : 0x01;
             subqdata[1] = 0x00;
-            subqdata[2] = tobcd(logical_track);            // Track numbers
-            subqdata[7] = tobcd(sector_track / 75 / 60);   // min
-            subqdata[8] = tobcd((sector_track / 75) % 60); // sec
-            subqdata[9] = tobcd(sector_track % 75);        // frame
+            subqdata[2] = toBCD(logical_track);            // Track numbers
+            subqdata[7] = toBCD(sector_track / 75 / 60);   // min
+            subqdata[8] = toBCD((sector_track / 75) % 60); // sec
+            subqdata[9] = toBCD(sector_track % 75);        // frame
         }
 
-        subqdata[3] = tobcd(sector / 75 / 60);   // min
-        subqdata[4] = tobcd((sector / 75) % 60); // sec
-        subqdata[5] = tobcd(sector % 75);        // frame
+        subqdata[3] = toBCD(sector / 75 / 60);   // min
+        subqdata[4] = toBCD((sector / 75) % 60); // sec
+        subqdata[5] = toBCD(sector % 75);        // frame
         subqdata[6] = 0x00;
         subqdata[10] = 0x00;
         subqdata[11] = 0x00;
@@ -138,31 +139,119 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
         }
         else
         {
-            subqdata[1] = tobcd(logical_track); // Track numbers
+            subqdata[1] = toBCD(logical_track); // Track numbers
         }
         if (sector_track < 150 && logical_track == 1)
         { // 2 sec pause track
             subqdata[2] = 0x00;
             subqdata[3] = 0x00;                            // min
-            subqdata[4] = tobcd(1 - (sector_track / 75));  // sec (count down)
-            subqdata[5] = tobcd(74 - (sector_track % 75)); // frame (count down)
+            subqdata[4] = toBCD(1 - (sector_track / 75));  // sec (count down)
+            subqdata[5] = toBCD(74 - (sector_track % 75)); // frame (count down)
         }
         else
         {
             const int sector_track_after_pause = (logical_track == 1) ? sector_track - 150 : sector_track;
 
             subqdata[2] = 0x01;
-            subqdata[3] = tobcd(sector_track_after_pause / 75 / 60);   // min
-            subqdata[4] = tobcd((sector_track_after_pause / 75) % 60); // sec
-            subqdata[5] = tobcd(sector_track_after_pause % 75);        // frame
+            subqdata[3] = toBCD(sector_track_after_pause / 75 / 60);   // min
+            subqdata[4] = toBCD((sector_track_after_pause / 75) % 60); // sec
+            subqdata[5] = toBCD(sector_track_after_pause % 75);        // frame
         }
         subqdata[6] = 0x00;
-        subqdata[7] = tobcd(sector_abs / 75 / 60);   // amin
-        subqdata[8] = tobcd((sector_abs / 75) % 60); // asec
-        subqdata[9] = tobcd(sector_abs % 75);        // aframe
+        subqdata[7] = toBCD(sector_abs / 75 / 60);   // amin
+        subqdata[8] = toBCD((sector_abs / 75) % 60); // asec
+        subqdata[9] = toBCD(sector_abs % 75);        // aframe
         subqdata[10] = 0x00;
         subqdata[11] = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
+}
+
+// WIP
+FRESULT picostation::DiscImage::loadv2(const TCHAR *targetCue)
+{
+    int logical_track = 0;
+    m_numLogicalTracks = 0;
+    FIL fil = {0};
+    FRESULT fr;
+
+    TCHAR parentPath[128];
+
+    if (&fil)
+    {
+        f_close(&fil);
+    }
+
+    DEBUG_PRINT("Opening files: cue:'%s'\n", targetCue);
+
+    fr = f_open(&fil, targetCue, FA_READ); // Open cue sheet
+    if (fr == FR_OK)
+    {
+        // Get filesize
+        int filesize = f_size(&fil);
+        UINT br;
+        bool fEOF = false;
+        char c;
+        char keyword[128] = {0};
+        int keywordIndex = 0;
+        char word[128] = {0};
+        int wordIndex = 0;
+        
+        bool inQuotes = false;
+        bool afterQuotes = true;
+
+        if (filesize > 0)
+        {
+            DEBUG_PRINT("Filesize: %d\n", filesize);
+            {
+                while (f_read(&fil, &c, 1, &br) == FR_OK && !fEOF)
+                {
+                    fEOF = f_eof(&fil);
+                    bool isEOW = isspace(c);
+                    bool isEOL = (c == '\r' ) || (c == '\n');
+                    bool isSpace = isEOW && !isEOL;
+                    if (!isEOW && !inQuotes) {
+                        if(keywordIndex < 128)
+                        {
+                            keyword[keywordIndex++] = c;
+                        }
+                    }
+                    else{
+                        printf("Keyword: %s\n", keyword);
+                        memset(keyword, 0, 128);
+                        keyword[keywordIndex] = 0;
+                        keywordIndex = 0;
+                    }
+
+
+
+                    if(inQuotes)
+                    {
+                        if(c == '"')
+                        {
+                            inQuotes = false;
+                            afterQuotes = true;
+                            printf("Quotes: %s\n", word);
+                        }
+                        else
+                        {
+                            if(wordIndex < 128)
+                            {
+                                word[wordIndex++] = c;
+                            }
+                        }
+                    }
+                    //DEBUG_PRINT("%c", c);
+                }
+            }
+        }
+
+        f_close(&fil);
+
+        getParentPath(targetCue, parentPath);
+        DEBUG_PRINT("Parent path: %s\n", parentPath);
+    }
+
+    return fr;
 }
 
 FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCHAR *targetBin)
@@ -171,9 +260,8 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
     int logical_track = 0;
     m_numLogicalTracks = 0;
     FRESULT fr;
-    /*TCHAR parentPath[128];
-    getParentPath(targetCue, parentPath);
-    DEBUG_PRINT("Parent path: %s\n", parentPath);*/
+
+    TCHAR parentPath[128];
 
     if (&fil)
     {
@@ -183,81 +271,85 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
     DEBUG_PRINT("Opening files: cue:'%s'\n", targetCue);
 
     fr = f_open(fil, targetCue, FA_READ); // Open cue sheet
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) %s error: (%d)\n", targetCue, FRESULT_str(fr), fr);
-
-    f_gets(buf, 128, fil);
-
-    while (1)
-    {
-        f_gets(buf, 128, fil);
-        char *token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
-        {
-            m_numLogicalTracks++;
-        }
-        if (f_eof(fil))
-        {
-            break;
-        }
-    }
-
-    f_rewind(fil);
-    DEBUG_PRINT("Logical tracks: %d\n", m_numLogicalTracks);
-
-    m_logicalTrackToSector[0] = 0;
-    m_logicalTrackToSector[1] = 4500;
-
-    f_gets(buf, 128, fil);
-    while (1)
+    if (fr == FR_OK)
     {
         f_gets(buf, 128, fil);
 
-        if (f_eof(fil))
+        while (1)
         {
-            break;
+            f_gets(buf, 128, fil);
+            char *token = strtok(buf, " ");
+            if (strcmp("TRACK", token) == 0)
+            {
+                m_numLogicalTracks++;
+            }
+            if (f_eof(fil))
+            {
+                break;
+            }
         }
-        char *token;
-        token = strtok(buf, " ");
-        if (strcmp("TRACK", token) == 0)
+
+        f_rewind(fil);
+        DEBUG_PRINT("Logical tracks: %d\n", m_numLogicalTracks);
+
+        m_logicalTrackToSector[0] = 0; // 0-4500 Lead-in
+        m_logicalTrackToSector[1] = 4500; // 4500-4650 - 2 sec pre-gap
+
+        f_gets(buf, 128, fil);
+        while (1)
         {
+            f_gets(buf, 128, fil);
+
+            if (f_eof(fil))
+            {
+                break;
+            }
+            char *token;
+            token = strtok(buf, " ");
+            if (strcmp("TRACK", token) == 0)
+            {
+                token = strtok(NULL, " ");
+                logical_track = atoi(token);
+            }
             token = strtok(NULL, " ");
-            logical_track = atoi(token);
-        }
-        token = strtok(NULL, " ");
-        token[strcspn(token, "\r\n")] = 0;
-        m_isDataTrack[logical_track] = strcmp("AUDIO", token);
-        if (m_isDataTrack[logical_track])
-        {
-            m_hasData = true;
-        }
-        f_gets(buf, 128, fil);
-        token = strtok(buf, " ");
-        token = strtok(NULL, " ");
-        token = strtok(NULL, " ");
+            token[strcspn(token, "\r\n")] = 0;
+            m_isDataTrack[logical_track] = strcmp("AUDIO", token);
+            if (m_isDataTrack[logical_track])
+            {
+                m_hasData = true;
+            }
+            f_gets(buf, 128, fil);
+            token = strtok(buf, " ");
+            token = strtok(NULL, " ");
+            token = strtok(NULL, " ");
 
-        int mm = atoi(strtok(token, ":"));
-        int ss = atoi(strtok(NULL, ":"));
-        int ff = atoi(strtok(NULL, ":"));
-        if (logical_track != 1)
-        {
-            m_logicalTrackToSector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
+            int mm = atoi(strtok(token, ":"));
+            int ss = atoi(strtok(NULL, ":"));
+            int ff = atoi(strtok(NULL, ":"));
+            if (logical_track != 1)
+            {
+                m_logicalTrackToSector[logical_track] = mm * 60 * 75 + ss * 75 + ff + 4650;
+            }
+            DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
         }
-        DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
+
+        f_close(fil);
+        fr = f_open(fil, targetBin, FA_READ);
+        if (FR_OK != fr && FR_EXIST != fr)
+            panic("f_open(%s) %s error: (%d)\n", targetBin, FRESULT_str(fr), fr);
+
+        m_logicalTrackToSector[m_numLogicalTracks + 1] = f_size(fil) / 2352 + 4650;
+        m_isDataTrack[m_numLogicalTracks + 1] = 0;
+        m_isDataTrack[0] = 0;
+
+        for (int i = 0; i < m_numLogicalTracks + 2; i++)
+        {
+            DEBUG_PRINT("sector_t: track: %d %d data: %d\n", i, m_logicalTrackToSector[i], m_isDataTrack[i]);
+        }
     }
-
-    f_close(fil);
-    fr = f_open(fil, targetBin, FA_READ);
-    if (FR_OK != fr && FR_EXIST != fr)
-        panic("f_open(%s) %s error: (%d)\n", targetBin, FRESULT_str(fr), fr);
-
-    m_logicalTrackToSector[m_numLogicalTracks + 1] = f_size(fil) / 2352 + 4650;
-    m_isDataTrack[m_numLogicalTracks + 1] = 0;
-    m_isDataTrack[0] = 0;
-
-    for (int i = 0; i < m_numLogicalTracks + 2; i++)
+    else
     {
-        DEBUG_PRINT("sector_t: track: %d %d data: %d\n", i, m_logicalTrackToSector[i], m_isDataTrack[i]);
+        panic("f_open(%s) %s error: (%d)\n", targetCue, FRESULT_str(fr), fr);
     }
 
     return fr;

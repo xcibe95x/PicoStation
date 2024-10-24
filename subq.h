@@ -1,3 +1,5 @@
 #pragma once
 
-void start_subq();
+#include <stdint.h>
+
+void start_subq(int sector);

@@ -33,58 +33,48 @@ namespace Command
 }
 
 extern uint latched;
-extern uint count_track;
+extern uint countTrack;
 extern uint track;
-extern uint original_track;
+extern uint originalTrack;
 
-extern uint sled_move_direction;
+extern uint sledMoveDirection;
 
-extern int sector;
-extern int sector_for_track_update;
+extern volatile int sector;
+extern int sectorForTrackUpdate;
 
 extern int mode;
 
-extern volatile bool SENS_data[16];
+extern volatile bool sensData[16];
+extern volatile bool subqDelay;
 
 extern volatile bool soct;
-extern uint soct_offset;
+extern uint soctOffset;
 extern volatile uint imageIndex;
 
-static uint jump_track = 0;
+static uint jumpTrack = 0;
 
-void set_sens(uint what, bool new_value);
+void setSens(uint what, bool new_value);
 
 inline void autosequence()
 {
-    const int subcommand = (latched & 0x0F0000) >> 16;
-    //uint timer_range = (latched & 0x8) >> 3;
-    //uint cancel_timer = (latched & 0xF) >> 4;
+    const uint subcommand = (latched & 0x0F0000) >> 16;
+    //const uint timerRange = (latched & 0x8) >> 3;
+    //const uint cancelTimer = (latched & 0xF) >> 4;
 
-    set_sens(SENS::XBUSY, (subcommand != 0));
+    setSens(SENS::XBUSY, (subcommand != 0));
 
     switch (subcommand)
     {
     case 0x0: // Cancel
-              /*switch (timer_range)
-              {
-              case 0:
-                  // cancel_timer_value = 1000;
-                  break;
-      
-              case 1:
-                  // cancel_timer_value = 11000;
-                  break;
-              }*/
         DEBUG_PRINT("Cancel\n");
-        // DEBUG_PRINT("Cancel timer_range: %d cancel_timer: %d\n", timer_range, cancel_timer);
         return;
 
     case 0x4: // Fine search - forward
-        track = track + jump_track;
+        track = track + jumpTrack;
         DEBUG_PRINT("Fine search - forward %d\n", track);
         break;
     case 0x5: // Fine search - reverse
-        track = track - jump_track;
+        track = track - jumpTrack;
         DEBUG_PRINT("Fine search - reverse %d\n", track);
         break;
 
@@ -111,20 +101,20 @@ inline void autosequence()
         break;
 
     case 0xC: // 2N Track Jump - forward
-        track = track + (2 * jump_track);
+        track = track + (2 * jumpTrack);
         DEBUG_PRINT("2N Track Jump - forward %d\n", track);
         break;
     case 0xD: // 2N Track Jump - reverse
-        track = track - (2 * jump_track);
+        track = track - (2 * jumpTrack);
         DEBUG_PRINT("2N Track Jump - reverse %d\n", track);
         break;
 
     case 0xE: // M Track Move - forward
-        track = track + jump_track;
+        track = track + jumpTrack;
         DEBUG_PRINT("M Track Move - forward %d\n", track);
         break;
     case 0xF: // M Track Move - reverse
-        track = track - jump_track;
+        track = track - jumpTrack;
         DEBUG_PRINT("M Track Move - reverse %d\n", track);
         break;
 
@@ -133,33 +123,33 @@ inline void autosequence()
         break;
     }
 
-    sector = track_to_sector(track);
-    sector_for_track_update = sector;
+    sector = trackToSector(track);
+    sectorForTrackUpdate = sector;
 }
 
-inline void sled_move()
+inline void sledMove()
 {
-    const int subcommand_move = (latched & 0x030000) >> 16;
-    const int subcommand_track = (latched & 0x0C0000) >> 16;
+    const uint subcommand_move = (latched & 0x030000) >> 16;
+    const uint subcommand_track = (latched & 0x0C0000) >> 16;
     switch (subcommand_move)
     {
     case 2:
-        sled_move_direction = SledMove::FORWARD;
-        original_track = track;
+        sledMoveDirection = SledMove::FORWARD;
+        originalTrack = track;
         break;
 
     case 3:
-        sled_move_direction = SledMove::REVERSE;
-        original_track = track;
+        sledMoveDirection = SledMove::REVERSE;
+        originalTrack = track;
         break;
 
     default:
-        if (sled_move_direction != SledMove::STOP)
+        if (sledMoveDirection != SledMove::STOP)
         {
-            sector = track_to_sector(track);
-            sector_for_track_update = sector;
+            sector = trackToSector(track);
+            sectorForTrackUpdate = sector;
         }
-        sled_move_direction = SledMove::STOP;
+        sledMoveDirection = SledMove::STOP;
         break;
     }
 
@@ -167,32 +157,36 @@ inline void sled_move()
     {
     case 8:
         track++;
-        sector = track_to_sector(track);
-        sector_for_track_update = sector;
+        sector = trackToSector(track);
+        sectorForTrackUpdate = sector;
         break;
     case 0xC:
         track--;
-        sector = track_to_sector(track);
-        sector_for_track_update = sector;
+        sector = trackToSector(track);
+        sectorForTrackUpdate = sector;
         break;
     }
 }
 
 inline void spindle()
 {
-    const int subcommand = (latched & 0x0F0000) >> 16;
+    const uint subcommand = (latched & 0x0F0000) >> 16;
 
-    SENS_data[SENS::GFS] = (subcommand == 6);
+    sensData[SENS::GFS] = (subcommand == 6);
+    if(!sensData[SENS::GFS])
+    {
+        subqDelay = false;
+    }
 }
 
 void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
 {
-    const int command = (latched & 0xF00000) >> 20;
+    const uint command = (latched & 0xF00000) >> 20;
 
     switch (command)
     {
     case Command::SLED: // $2X commands - Sled motor control
-        sled_move();
+        sledMove();
         break;
 
     case Command::AUTOSEQ: // $4X commands
@@ -200,14 +194,14 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
         break;
 
     case Command::JUMP_TRACK: // $7X commands - Auto sequence track jump count setting
-        jump_track = (latched & 0xFFFF0) >> 4;
-        DEBUG_PRINT("jump: %d\n", jump_track);
+        jumpTrack = (latched & 0xFFFF0) >> 4;
+        DEBUG_PRINT("jump: %d\n", jumpTrack);
         break;
 
     case Command::SOCT: // $8X commands - MODE specification
         soct = true;
         pio_sm_set_enabled(pio0, SM::c_subq, false);
-        soct_program_init(pio1, SM::c_soct, soct_offset, Pin::SQSO, Pin::SQCK);
+        soct_program_init(pio1, SM::c_soct, soctOffset, Pin::SQSO, Pin::SQCK);
         pio_sm_set_enabled(pio1, SM::c_soct, true);
         pio_sm_put_blocking(pio1, SM::c_soct, 0xFFFFFFF);
         break;
@@ -223,8 +217,8 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
         break;
 
     case Command::COUNT_TRACK: // $BX commands - This command sets the traverse monitor count.
-        count_track = (latched & 0xFFFF0) >> 4;
-        DEBUG_PRINT("count: %d\n", count_track);
+        countTrack = (latched & 0xFFFF0) >> 4;
+        DEBUG_PRINT("count: %d\n", countTrack);
         break;
     case Command::SPINDLE: // $EX commands - Spindle motor control
         spindle();
