@@ -46,7 +46,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
     // Lead-in
     if (sector < 4500)
     {
-        const int point = ((sector / 3) % (3 + m_numLogicalTracks)) + 1;
+        const int point = ((sector / 3) % (3 + m_numLogicalTracks)) + 1; // TOC entiers are repeated 3 times
 
         if (point <= m_numLogicalTracks) // TOC Entries
         {
@@ -61,45 +61,45 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             }
             subqdata->ctrladdr = m_isDataTrack[logical_track] ? 0x41 : 0x01;
             subqdata->tno = 0x00;
-            subqdata->x = toBCD(logical_track);               // Track numbers
-            subqdata->pmin = toBCD(sector_track / 75 / 60);   // min
-            subqdata->psec = toBCD((sector_track / 75) % 60); // sec
-            subqdata->pframe = toBCD(sector_track % 75);      // frame
+            subqdata->x = toBCD(logical_track);
+            subqdata->pmin = toBCD(sector_track / 75 / 60);
+            subqdata->psec = toBCD((sector_track / 75) % 60);
+            subqdata->pframe = toBCD(sector_track % 75);
         }
         else if (point == m_numLogicalTracks + 1) // A0
         {
-            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
-            subqdata->tno = 0x00;    // TNO = 0
-            subqdata->point = 0xA0;  // PMIN = TNO FIRST, PSEC = 0?, PFRAME = 0
-            subqdata->pmin = 0x01;   // pmin
-            subqdata->psec = 0x20;   // psec
-            subqdata->pframe = 0x00; // pframe
+            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
+            subqdata->tno = 0x00;
+            subqdata->point = 0xA0;
+            subqdata->pmin = 0x01;
+            subqdata->psec = m_hasData ? 0x20 : 0x00; // 0 = audio, 20 = CDROM-XA
+            subqdata->pframe = 0x00;
         }
         else if (point == m_numLogicalTracks + 2) // A1
         {
-            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
+            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
-            subqdata->point = 0xA1;                     // PMIN = TNO LAST, PSEC = 0, PFRAME = 0
-            subqdata->pmin = toBCD(m_numLogicalTracks); // pmin
-            subqdata->psec = 0x00;                      // psec
-            subqdata->pframe = 0x00;                    // pframe
+            subqdata->point = 0xA1;
+            subqdata->pmin = toBCD(m_numLogicalTracks);
+            subqdata->psec = 0x00;
+            subqdata->pframe = 0x00;
         }
         else if (point == m_numLogicalTracks + 3) // A2
         {
             const int sector_lead_out = m_logicalTrackToSector[m_numLogicalTracks + 1] - 4500;
-            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
+            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
-            subqdata->point = 0xA2;                              // PMIN = PSEC = PFRAME = Lead-out
-            subqdata->pmin = toBCD(sector_lead_out / 75 / 60);   // pmin
-            subqdata->psec = toBCD((sector_lead_out / 75) % 60); // psec
-            subqdata->pframe = toBCD(sector_lead_out % 75);      // pframe
+            subqdata->point = 0xA2;
+            subqdata->pmin = toBCD(sector_lead_out / 75 / 60);
+            subqdata->psec = toBCD((sector_lead_out / 75) % 60);
+            subqdata->pframe = toBCD(sector_lead_out % 75);
         }
 
-        subqdata->min = toBCD(sector / 75 / 60);   // min
-        subqdata->sec = toBCD((sector / 75) % 60); // sec
-        subqdata->frame = toBCD(sector % 75);      // frame
-        subqdata->zero = 0x00;                     // ZERO
-        subqdata->crc = 0x00;                      // CRC
+        subqdata->min = toBCD(sector / 75 / 60);
+        subqdata->sec = toBCD((sector / 75) % 60);
+        subqdata->frame = toBCD(sector % 75);
+        subqdata->zero = 0x00;
+        subqdata->crc = 0x00;
     }
     else // Program area + lead-out
     {
@@ -138,14 +138,14 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             const int sector_track_after_pause = (logical_track == 1) ? sector_track - 150 : sector_track;
 
             subqdata->x = 0x01;
-            subqdata->min = toBCD(sector_track_after_pause / 75 / 60);   // min
-            subqdata->sec = toBCD((sector_track_after_pause / 75) % 60); // sec
-            subqdata->frame = toBCD(sector_track_after_pause % 75);      // frame
+            subqdata->min = toBCD(sector_track_after_pause / 75 / 60);
+            subqdata->sec = toBCD((sector_track_after_pause / 75) % 60);
+            subqdata->frame = toBCD(sector_track_after_pause % 75);
         }
         subqdata->zero = 0x00;
-        subqdata->amin = toBCD(sector_abs / 75 / 60);   // amin
-        subqdata->asec = toBCD((sector_abs / 75) % 60); // asec
-        subqdata->aframe = toBCD(sector_abs % 75);      // aframe
+        subqdata->amin = toBCD(sector_abs / 75 / 60);
+        subqdata->asec = toBCD((sector_abs / 75) % 60);
+        subqdata->aframe = toBCD(sector_abs % 75);
         subqdata->crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
 }
