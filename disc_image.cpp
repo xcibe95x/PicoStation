@@ -11,6 +11,7 @@
 #include "f_util.h"
 
 #include "logging.h"
+#include "subq.h"
 #include "utils.h"
 
 #if DEBUG_CUE
@@ -38,62 +39,19 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath)
     }
 }
 
-void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
+void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
 {
-    // Sub-Q data format:
-    // 0: CONTROL[4], ADR[4]
-    // 1: TNO/Track number[8] BCD
-    // DATA-Q:
-    //
-    // Mode 1: ADR = 1
-    // 2: X[8] BCD
-    // 3: MIN[8] BCD
-    // 4: SEC[8] BCD
-    // 5: FRAME[8] BCD
-    // 6: ZERO[8]
-    // 7: AMIN[8] BCD
-    // 8: ASEC[8] BCD
-    // 9: AFRAME[8] BCD
-    // 10-11: CRC[16]
-
     int sector_track;
 
+    // Lead-in
     if (sector < 4500)
     {
-        const int subq_entry = sector % (3 + m_numLogicalTracks);
+        const int point = ((sector / 3) % (3 + m_numLogicalTracks)) + 1;
 
-        if (subq_entry == 0)
+        if (point <= m_numLogicalTracks) // TOC Entries
         {
-            subqdata[0] = m_hasData ? 0x61 : 0x21;
-            subqdata[1] = 0x00;
-            subqdata[2] = 0xA0; // PMIN = TNO FIRST, PSEC = 0?, PFRAME = 0
-            subqdata[7] = 0x01; // pmin
-            subqdata[8] = 0x20; // psec
-            subqdata[9] = 0x00; // pframe
-        }
-        else if (subq_entry == 1)
-        {
-            subqdata[0] = m_hasData ? 0x61 : 0x21;
-            subqdata[1] = 0x00;
-            subqdata[2] = 0xA1;                      // PMIN = TNO LAST, PSEC = 0, PFRAME = 0
-            subqdata[7] = toBCD(m_numLogicalTracks); // pmin
-            subqdata[8] = 0x00;                      // psec
-            subqdata[9] = 0x00;                      // pframe
-        }
-        else if (subq_entry == 2)
-        {
-            const int sector_lead_out = m_logicalTrackToSector[m_numLogicalTracks + 1] - 4500;
-            subqdata[0] = m_hasData ? 0x61 : 0x21;
-            subqdata[1] = 0x00;
-            subqdata[2] = 0xA2;                               // PMIN = PSEC = PFRAME = Lead-out
-            subqdata[7] = toBCD(sector_lead_out / 75 / 60);   // pmin
-            subqdata[8] = toBCD((sector_lead_out / 75) % 60); // psec
-            subqdata[9] = toBCD(sector_lead_out % 75);        // pframe
-        }
-        else if (subq_entry > 2)
-        {
-            int logical_track = subq_entry - 2;
-            if (logical_track == 1)
+            int logical_track = point;
+            if (logical_track == 1) // 2 sec pause track
             {
                 sector_track = 150;
             }
@@ -101,22 +59,49 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
             {
                 sector_track = m_logicalTrackToSector[logical_track] - 4500;
             }
-            subqdata[0] = m_isDataTrack[logical_track] ? 0x41 : 0x01;
-            subqdata[1] = 0x00;
-            subqdata[2] = toBCD(logical_track);            // Track numbers
-            subqdata[7] = toBCD(sector_track / 75 / 60);   // min
-            subqdata[8] = toBCD((sector_track / 75) % 60); // sec
-            subqdata[9] = toBCD(sector_track % 75);        // frame
+            subqdata->ctrladdr = m_isDataTrack[logical_track] ? 0x41 : 0x01;
+            subqdata->tno = 0x00;
+            subqdata->x = toBCD(logical_track);               // Track numbers
+            subqdata->pmin = toBCD(sector_track / 75 / 60);   // min
+            subqdata->psec = toBCD((sector_track / 75) % 60); // sec
+            subqdata->pframe = toBCD(sector_track % 75);      // frame
+        }
+        else if (point == m_numLogicalTracks + 1) // A0
+        {
+            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
+            subqdata->tno = 0x00;    // TNO = 0
+            subqdata->point = 0xA0;  // PMIN = TNO FIRST, PSEC = 0?, PFRAME = 0
+            subqdata->pmin = 0x01;   // pmin
+            subqdata->psec = 0x20;   // psec
+            subqdata->pframe = 0x00; // pframe
+        }
+        else if (point == m_numLogicalTracks + 2) // A1
+        {
+            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
+            subqdata->tno = 0x00;
+            subqdata->point = 0xA1;                     // PMIN = TNO LAST, PSEC = 0, PFRAME = 0
+            subqdata->pmin = toBCD(m_numLogicalTracks); // pmin
+            subqdata->psec = 0x00;                      // psec
+            subqdata->pframe = 0x00;                    // pframe
+        }
+        else if (point == m_numLogicalTracks + 3) // A2
+        {
+            const int sector_lead_out = m_logicalTrackToSector[m_numLogicalTracks + 1] - 4500;
+            subqdata->ctrladdr = m_hasData ? 0x61 : 0x21;
+            subqdata->tno = 0x00;
+            subqdata->point = 0xA2;                              // PMIN = PSEC = PFRAME = Lead-out
+            subqdata->pmin = toBCD(sector_lead_out / 75 / 60);   // pmin
+            subqdata->psec = toBCD((sector_lead_out / 75) % 60); // psec
+            subqdata->pframe = toBCD(sector_lead_out % 75);      // pframe
         }
 
-        subqdata[3] = toBCD(sector / 75 / 60);   // min
-        subqdata[4] = toBCD((sector / 75) % 60); // sec
-        subqdata[5] = toBCD(sector % 75);        // frame
-        subqdata[6] = 0x00;
-        subqdata[10] = 0x00;
-        subqdata[11] = 0x00;
+        subqdata->min = toBCD(sector / 75 / 60);   // min
+        subqdata->sec = toBCD((sector / 75) % 60); // sec
+        subqdata->frame = toBCD(sector % 75);      // frame
+        subqdata->zero = 0x00;                     // ZERO
+        subqdata->crc = 0x00;                      // CRC
     }
-    else
+    else // Program area + lead-out
     {
         int logical_track = m_numLogicalTracks + 1; // in case seek overshoots past end of disc
         for (int i = 0; i < m_numLogicalTracks + 2; i++)
@@ -131,38 +116,37 @@ void picostation::DiscImage::generateSubQ(uint8_t *subqdata, int sector)
         const int sector_abs = (sector - 4500);
         m_currentLogicalTrack = logical_track;
 
-        subqdata[0] = m_isDataTrack[logical_track] ? 0x41 : 0x01;
+        subqdata->ctrladdr = m_isDataTrack[logical_track] ? 0x41 : 0x01;
 
         if (logical_track == m_numLogicalTracks + 1)
         {
-            subqdata[1] = 0xAA; // Lead-out track
+            subqdata->tno = 0xAA; // Lead-out track
         }
         else
         {
-            subqdata[1] = toBCD(logical_track); // Track numbers
+            subqdata->tno = toBCD(logical_track); // Track numbers
         }
         if (sector_track < 150 && logical_track == 1)
         { // 2 sec pause track
-            subqdata[2] = 0x00;
-            subqdata[3] = 0x00;                            // min
-            subqdata[4] = toBCD(1 - (sector_track / 75));  // sec (count down)
-            subqdata[5] = toBCD(74 - (sector_track % 75)); // frame (count down)
+            subqdata->x = 0x00;
+            subqdata->min = 0x00;                              // min
+            subqdata->sec = toBCD(1 - (sector_track / 75));    // sec (count down)
+            subqdata->frame = toBCD(74 - (sector_track % 75)); // frame (count down)
         }
         else
         {
             const int sector_track_after_pause = (logical_track == 1) ? sector_track - 150 : sector_track;
 
-            subqdata[2] = 0x01;
-            subqdata[3] = toBCD(sector_track_after_pause / 75 / 60);   // min
-            subqdata[4] = toBCD((sector_track_after_pause / 75) % 60); // sec
-            subqdata[5] = toBCD(sector_track_after_pause % 75);        // frame
+            subqdata->x = 0x01;
+            subqdata->min = toBCD(sector_track_after_pause / 75 / 60);   // min
+            subqdata->sec = toBCD((sector_track_after_pause / 75) % 60); // sec
+            subqdata->frame = toBCD(sector_track_after_pause % 75);      // frame
         }
-        subqdata[6] = 0x00;
-        subqdata[7] = toBCD(sector_abs / 75 / 60);   // amin
-        subqdata[8] = toBCD((sector_abs / 75) % 60); // asec
-        subqdata[9] = toBCD(sector_abs % 75);        // aframe
-        subqdata[10] = 0x00;
-        subqdata[11] = ((sector % 2) == 0) ? 0x00 : 0x80;
+        subqdata->zero = 0x00;
+        subqdata->amin = toBCD(sector_abs / 75 / 60);   // amin
+        subqdata->asec = toBCD((sector_abs / 75) % 60); // asec
+        subqdata->aframe = toBCD(sector_abs % 75);      // aframe
+        subqdata->crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
 }
 
@@ -195,7 +179,7 @@ FRESULT picostation::DiscImage::loadv2(const TCHAR *targetCue)
         int keywordIndex = 0;
         char word[128] = {0};
         int wordIndex = 0;
-        
+
         bool inQuotes = false;
         bool afterQuotes = true;
 
@@ -207,26 +191,26 @@ FRESULT picostation::DiscImage::loadv2(const TCHAR *targetCue)
                 {
                     fEOF = f_eof(&fil);
                     bool isEOW = isspace(c);
-                    bool isEOL = (c == '\r' ) || (c == '\n');
+                    bool isEOL = (c == '\r') || (c == '\n');
                     bool isSpace = isEOW && !isEOL;
-                    if (!isEOW && !inQuotes) {
-                        if(keywordIndex < 128)
+                    if (!isEOW && !inQuotes)
+                    {
+                        if (keywordIndex < 128)
                         {
                             keyword[keywordIndex++] = c;
                         }
                     }
-                    else{
+                    else
+                    {
                         printf("Keyword: %s\n", keyword);
                         memset(keyword, 0, 128);
                         keyword[keywordIndex] = 0;
                         keywordIndex = 0;
                     }
 
-
-
-                    if(inQuotes)
+                    if (inQuotes)
                     {
-                        if(c == '"')
+                        if (c == '"')
                         {
                             inQuotes = false;
                             afterQuotes = true;
@@ -234,13 +218,13 @@ FRESULT picostation::DiscImage::loadv2(const TCHAR *targetCue)
                         }
                         else
                         {
-                            if(wordIndex < 128)
+                            if (wordIndex < 128)
                             {
                                 word[wordIndex++] = c;
                             }
                         }
                     }
-                    //DEBUG_PRINT("%c", c);
+                    // DEBUG_PRINT("%c", c);
                 }
             }
         }
@@ -292,7 +276,7 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
         f_rewind(fil);
         DEBUG_PRINT("Logical tracks: %d\n", m_numLogicalTracks);
 
-        m_logicalTrackToSector[0] = 0; // 0-4500 Lead-in
+        m_logicalTrackToSector[0] = 0;    // 0-4500 Lead-in
         m_logicalTrackToSector[1] = 4500; // 4500-4650 - 2 sec pre-gap
 
         f_gets(buf, 128, fil);

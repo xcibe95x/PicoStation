@@ -2,6 +2,8 @@
 
 #include "ff.h"
 
+#include "subq.h"
+
 namespace picostation
 {
     class DiscImage
@@ -14,7 +16,7 @@ namespace picostation
         FRESULT loadv2(const TCHAR *targetCue);
 
         // getData
-        void generateSubQ(uint8_t *subqdata, int sector);
+        void generateSubQ(SubQ *subqdata, int sector);
         int numLogicalTracks() { return m_numLogicalTracks; }
         int logicalTrackToSector(int logicalTrack) { return m_logicalTrackToSector[logicalTrack]; };
         bool hasData() { return m_hasData; };

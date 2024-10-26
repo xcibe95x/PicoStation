@@ -59,11 +59,10 @@ static inline void send_subq(uint8_t *subqdata)
 
 void start_subq(int sector)
 {
-    uint8_t tracksubq[12];
+    SubQ tracksubq;
 
-    // Generate subQ data
-    discImage.generateSubQ(tracksubq, sector);
-    send_subq(tracksubq);
+    discImage.generateSubQ(&tracksubq, sector);
+    send_subq(tracksubq.raw);
 
 #if DEBUG_SUBQ
     if (sector % (50 + discImage.numLogicalTracks()) == 0)
