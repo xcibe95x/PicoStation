@@ -18,54 +18,54 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern picostation::DiscImage discImage;
+extern picostation::DiscImage g_discImage;
 
-extern uint subqOffset;
+extern uint g_subqOffset;
 
-void printf_subq(uint8_t *subqdata)
+void printf_subq(uint8_t *data)
 {
     for (int i = 0; i < 12; i++)
     {
-        DEBUG_PRINT("%02X ", subqdata[i]);
+        DEBUG_PRINT("%02X ", data[i]);
     }
 }
 
-static inline void send_subq(uint8_t *subqdata)
+static inline void send_subq(uint8_t *data)
 {
-    subq_program_init(pio0, SM::c_subq, subqOffset, Pin::SQSO, Pin::SQCK);
-    pio_sm_set_enabled(pio0, SM::c_subq, true);
+    subq_program_init(pio0, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
+    pio_sm_set_enabled(pio0, SM::SUBQ, true);
 
-    uint sub1 = (subqdata[3] << 24) |
-                (subqdata[2] << 16) |
-                (subqdata[1] << 8) |
-                (subqdata[0]);
+    uint sub1 = (data[3] << 24) |
+                (data[2] << 16) |
+                (data[1] << 8) |
+                (data[0]);
 
-    uint sub2 = (subqdata[7] << 24) |
-                (subqdata[6] << 16) |
-                (subqdata[5] << 8) |
-                (subqdata[4]);
+    uint sub2 = (data[7] << 24) |
+                (data[6] << 16) |
+                (data[5] << 8) |
+                (data[4]);
 
-    uint sub3 = (subqdata[11] << 24) |
-                (subqdata[10] << 16) |
-                (subqdata[9] << 8) |
-                (subqdata[8]);
+    uint sub3 = (data[11] << 24) |
+                (data[10] << 16) |
+                (data[9] << 8) |
+                (data[8]);
 
-    pio_sm_put_blocking(pio0, SM::c_subq, sub1);
-    pio_sm_put_blocking(pio0, SM::c_subq, sub2);
-    pio_sm_put_blocking(pio0, SM::c_subq, sub3);
+    pio_sm_put_blocking(pio0, SM::SUBQ, sub1);
+    pio_sm_put_blocking(pio0, SM::SUBQ, sub2);
+    pio_sm_put_blocking(pio0, SM::SUBQ, sub3);
 
-    pio_sm_put_blocking(pio1, SM::c_scor, 1);
+    pio_sm_put_blocking(pio1, SM::SCOR, 1);
 }
 
 void start_subq(int sector)
 {
     SubQ tracksubq;
 
-    discImage.generateSubQ(&tracksubq, sector);
+    g_discImage.generateSubQ(&tracksubq, sector);
     send_subq(tracksubq.raw);
 
 #if DEBUG_SUBQ
-    if (sector % (50 + discImage.numLogicalTracks()) == 0)
+    if (sector % (50 + g_discImage.numLogicalTracks()) == 0)
     {
         printf_subq(tracksubq.raw);
         DEBUG_PRINT("%d\n", sector);

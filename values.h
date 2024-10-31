@@ -29,16 +29,16 @@ namespace Pin
 namespace SM
 {
     // PIO0
-    constexpr uint c_i2sData = 0;
-    constexpr uint c_subq = 1;
+    constexpr uint I2SDATA = 0;
+    constexpr uint SUBQ = 1;
 
     // PIO1
-    constexpr uint c_scor = 0;
-    constexpr uint c_mechacon = 1;
-    constexpr uint c_soct = 2;
+    constexpr uint SCOR = 0;
+    constexpr uint MECHACON = 1;
+    constexpr uint SOCT = 2;
 }
 
-constexpr int c_numImages = 1;
+constexpr int NUM_IMAGES = 1;
 
 namespace SENS
 {

@@ -46,7 +46,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
     // Lead-in
     if (sector < 4500)
     {
-        const int point = ((sector / 3) % (3 + m_numLogicalTracks)) + 1; // TOC entiers are repeated 3 times
+        const int point = ((sector / 3) % (3 + m_numLogicalTracks)) + 1; // TOC entries are repeated 3 times
 
         if (point <= m_numLogicalTracks) // TOC Entries
         {
@@ -326,7 +326,7 @@ FRESULT picostation::DiscImage::load(FIL *fil, const TCHAR *targetCue, const TCH
         m_isDataTrack[m_numLogicalTracks + 1] = 0;
         m_isDataTrack[0] = 0;
 
-        for (int i = 0; i < m_numLogicalTracks + 2; i++)
+        for (int i = 1; i <= m_numLogicalTracks; i++)
         {
             DEBUG_PRINT("sector_t: track: %d %d data: %d\n", i, m_logicalTrackToSector[i], m_isDataTrack[i]);
         }
