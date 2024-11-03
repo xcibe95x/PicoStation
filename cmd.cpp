@@ -70,7 +70,7 @@ static uint s_jumpTrack = 0;
 
 void setSens(uint what, bool new_value);
 
-inline void autosequence()
+inline void autoSequence() // $4X
 {
     const uint sub_command = (g_latched & 0x0F0000) >> 16;
     const bool reverse_jump = sub_command & 0x1;
@@ -79,7 +79,7 @@ inline void autosequence()
 
     int tracks_to_move = 0;
 
-    setSens(SENS::XBUSY, (sub_command != 0));
+    g_sensData[SENS::XBUSY] = (sub_command != 0);
 
     if (sub_command == 0x7) // Focus-On
     {
@@ -136,7 +136,7 @@ inline void autosequence()
     g_sectorForTrackUpdate = g_sector;
 }
 
-inline void funcSpec()
+inline void funcSpec() // $9X
 {
     // const bool flfc = g_latched & (1 << 13);
     // const bool biligl_sub = g_latched & (1 << 14);
@@ -156,7 +156,7 @@ inline void funcSpec()
     }
 }
 
-inline void modeSpec()
+inline void modeSpec() // $8X
 {
     const bool soct = g_latched & (1 << 13);
     // const bool ashs = g_latched & (1 << 14);
@@ -176,7 +176,7 @@ inline void modeSpec()
     }
 }
 
-inline void sledMove()
+inline void trackingMode() // $2X
 {
     const uint subcommand_tracking = (g_latched & 0x0C0000) >> 16;
     switch (subcommand_tracking) // Tracking servo
@@ -267,12 +267,12 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
 
     switch (command)
     {
-    case Command::TRACKING_MODE: // $2X commands - Sled motor control
-        sledMove();
+    case Command::TRACKING_MODE: // $2X commands - Tracking and sled servo control
+        trackingMode();
         break;
 
     case Command::AUTO_SEQUENCE: // $4X commands
-        autosequence();
+        autoSequence();
         break;
 
     case Command::JUMP_COUNT: // $7X commands - Auto sequence track jump count setting
@@ -295,7 +295,8 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
         spindle();
         break;
 
-        /*case Command::FOCUS_CONTROL: // $0X commands - Focus control
+        /*
+        case Command::FOCUS_CONTROL: // $0X commands - Focus control
         case 0x1:
         case 0x3:
         case 0x5: // Blind/brake

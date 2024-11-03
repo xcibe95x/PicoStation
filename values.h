@@ -26,20 +26,6 @@ namespace Pin
 };
 // C2PO, WFCK is always GND
 
-namespace SM
-{
-    // PIO0
-    constexpr uint I2SDATA = 0;
-    constexpr uint SUBQ = 1;
-
-    // PIO1
-    constexpr uint SCOR = 0;
-    constexpr uint MECHACON = 1;
-    constexpr uint SOCT = 2;
-}
-
-constexpr int NUM_IMAGES = 1;
-
 namespace SENS
 {
     enum : uint
@@ -65,3 +51,22 @@ namespace SledMove
         FORWARD = 1
     };
 }
+
+namespace SM
+{
+    // PIO0
+    constexpr uint I2SDATA = 0;
+    constexpr uint SUBQ = 1;
+
+    // PIO1
+    constexpr uint SCOR = 0;
+    constexpr uint MECHACON = 1;
+    constexpr uint SOCT = 2;
+}
+
+constexpr int NUM_IMAGES = 1;
+constexpr int c_leadIn = 4500;
+constexpr int c_preGap = 150;
+
+static constexpr size_t c_cdSamples = 588;
+static constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352

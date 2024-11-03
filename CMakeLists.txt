@@ -8,7 +8,24 @@ pico_sdk_init()
 
 add_executable(picostation)
 
-target_sources(picostation PRIVATE cmd.cpp disc_image.cpp hw_config.cpp i2s.cpp main.cpp subq.cpp utils.cpp)
+target_sources(picostation PRIVATE
+    cmd.cpp
+    disc_image.cpp
+    hw_config.cpp
+    i2s.cpp
+    main.cpp
+    subq.cpp
+    utils.cpp
+
+    third_party/cueparser/cueparser.c
+    third_party/cueparser/fileabstract.c
+    third_party/cueparser/scheduler.c
+    third_party/posix_file.c
+)
+
+target_include_directories(picostation PRIVATE
+    third_party
+)
 
 add_subdirectory(third_party/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
 

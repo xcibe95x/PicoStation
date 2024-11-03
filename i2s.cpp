@@ -78,10 +78,19 @@ void generateScramblingKey(uint16_t *cd_scrambling_key)
     }
 }
 
-void i2sDataThread()
+void mountSDCard()
 {
-    static constexpr size_t c_cdSamples = 588;
-    static constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
+    sd_card_t *pSD = sd_get_by_num(0);
+    FRESULT fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
+    
+    if (FR_OK != fr)
+    {
+        panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
+    }
+}
+
+void __time_critical_func(i2sDataThread)()
+{
     static constexpr int c_sectorCache = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
@@ -101,20 +110,11 @@ void i2sDataThread()
     int current_sector = -1;
     int loaded_image_index = -1;
 
-    FRESULT fr;
-    FIL fil = {0};
-
     // Generate CD scrambling key
     generateScramblingKey(cd_scrambling_key);
+    mountSDCard();
 
-    // Mount SD card
-    pSD = sd_get_by_num(0);
-    fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
-    if (FR_OK != fr)
-    {
-        panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-    }
-
+    // Init DMA
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
@@ -123,11 +123,11 @@ void i2sDataThread()
     channel_config_set_dreq(&c, DREQ_PIO0_TX0);
     dma_channel_configure(channel, &c, &pio0->txf[SM::I2SDATA], pio_samples[0], c_cdSamples * 2, false);
 
-    g_coreReady[1] = true;
+    g_coreReady[1] = true; // Core 1 is ready
 
-    while (!g_coreReady[0])
+    while (!g_coreReady[0]) // Wait for Core 0 to be ready
     {
-        sleep_ms(1);
+        tight_loop_contents();
     }
 
     while (true)
@@ -146,10 +146,9 @@ void i2sDataThread()
 
         if (loaded_image_index != g_imageIndex)
         {
-            g_discImage.load(&fil, target_Cues[g_imageIndex], target_Bins[g_imageIndex]);
-            //g_discImage.loadv2(target_Cues[g_imageIndex]);
-
+            g_discImage.load(target_Cues[g_imageIndex], target_Bins[g_imageIndex]);
             loaded_image_index = g_imageIndex;
+            // Reset cache and loaded sectors
             memset(cached_sectors, -1, sizeof(cached_sectors));
             sector_loaded[0] = -1;
             sector_loaded[1] = -1;
@@ -174,7 +173,7 @@ void i2sDataThread()
 
             // Sector cache lookup/update
             int cache_hit = -1;
-            int sector_to_search = current_sector < 4650 ? (current_sector % c_sectorCache) + 4650 : current_sector;
+            int sector_to_search = current_sector < c_leadIn + c_preGap ? (current_sector % c_sectorCache) + c_leadIn + c_preGap : current_sector;
             for (int i = 0; i < c_sectorCache; i++)
             {
                 if (cached_sectors[i] == sector_to_search)
@@ -186,21 +185,7 @@ void i2sDataThread()
 
             if (cache_hit == -1)
             {
-                uint64_t seekBytes = (sector_to_search - 4650) * 2352LL;
-                if (seekBytes >= 0)
-                {
-                    fr = f_lseek(&fil, seekBytes);
-                    if (FR_OK != fr)
-                    {
-                        f_rewind(&fil);
-                    }
-                }
-
-                fr = f_read(&fil, cd_samples[round_robin_cache_index], c_cdSamplesBytes, &bytes_read);
-                if (FR_OK != fr)
-                {
-                    panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
-                }
+                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search, c_cdSamples);
 
                 cached_sectors[round_robin_cache_index] = sector_to_search;
                 cache_hit = round_robin_cache_index;
@@ -208,7 +193,7 @@ void i2sDataThread()
             }
 
             // Copy CD samples to PIO buffer
-            if (current_sector >= 4650)
+            if (current_sector >= c_leadIn + c_preGap)
             {
                 for (int i = 0; i < c_cdSamples * 2; i++)
                 {
@@ -262,8 +247,9 @@ void i2sDataThread()
 
 void psnee(int sector)
 {
-    static constexpr int PSNEE_SECTOR_LIMIT = 4500;
-    static constexpr char SCEX_DATA[][44] = { // To-do: Change psnee to UART(250 baud)
+    static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
+    static constexpr char SCEX_DATA[][44] = {
+        // To-do: Change psnee to UART(250 baud)
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},

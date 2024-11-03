@@ -94,9 +94,6 @@ void __time_critical_func(updateMechSens)();
 
 void clampSectorTrackLimits()
 {
-    // static constexpr uint c_trackMax = 24000; // 90:14:40
-    // static constexpr int c_sectorMax = 440000; // 98:47:50
-
     static constexpr uint c_trackMax = 20892;  // 73:59:58
     static constexpr int c_sectorMax = 333000; // 74:00:00
 
@@ -319,7 +316,7 @@ void __time_critical_func(updateMechSens)()
     }
 }
 
-int main()
+int __time_critical_func(main)()
 {
     static constexpr uint c_MaxTrackMoveTime = 15;   // uS
     static constexpr uint c_MaxSubqDelayTime = 3333; // uS
