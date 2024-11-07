@@ -27,10 +27,6 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-const TCHAR target_Bins[NUM_IMAGES][128] = {
-    "UNIROM.bin",
-};
-
 const TCHAR target_Cues[NUM_IMAGES][128] = {
     "UNIROM.cue",
 };
@@ -146,7 +142,7 @@ void __time_critical_func(i2sDataThread)()
 
         if (loaded_image_index != g_imageIndex)
         {
-            g_discImage.load(target_Cues[g_imageIndex], target_Bins[g_imageIndex]);
+            g_discImage.load(target_Cues[g_imageIndex]);
             loaded_image_index = g_imageIndex;
             // Reset cache and loaded sectors
             memset(cached_sectors, -1, sizeof(cached_sectors));
@@ -185,7 +181,7 @@ void __time_critical_func(i2sDataThread)()
 
             if (cache_hit == -1)
             {
-                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search, c_cdSamples);
+                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search - c_leadIn - c_preGap, c_cdSamples);
 
                 cached_sectors[round_robin_cache_index] = sector_to_search;
                 cache_hit = round_robin_cache_index;

@@ -16,13 +16,10 @@ namespace picostation
     class DiscImage
     {
     public:
-        DiscImage() {
-            //CueParser_construct(&m_cueParser, &m_cueDisc);
-        };
+        DiscImage() {};
         ~DiscImage() {};
 
-        FRESULT load(const TCHAR *targetCue, const TCHAR *targetBin); // Abstract file access, remove bin once cue properly parsed
-        FRESULT loadv2(const TCHAR *targetCue);
+        FRESULT load(const TCHAR *targetCue);
 
         // getData
         void generateSubQ(SubQ *subqdata, int sector);
@@ -34,9 +31,6 @@ namespace picostation
 
     private:
         CueDisc m_cueDisc;
-        //CueFile m_cueFile;
-        //CueParser m_cueParser;
-        CueScheduler m_cueScheduler;
 
         bool m_hasData = false;
         int m_currentLogicalTrack = 0;

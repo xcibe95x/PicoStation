@@ -99,7 +99,7 @@ void clampSectorTrackLimits()
 
     if (g_track < 0 || g_sector < 0)
     {
-        DEBUG_PRINT("Clamping sector/track, below 0\n");
+        DEBUG_PRINT("Clamping sector/track, below 0: track %d sector %d\n", g_track, g_sector);
         g_track = 0;
         g_sector = 0;
         g_sectorForTrackUpdate = 0;

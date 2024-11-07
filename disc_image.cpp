@@ -66,18 +66,20 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
     // Lead-in
     if (sector < c_leadIn)
     {
-        const int point = ((sector / 3) % (3 + m_cueDisc.trackCount)) + 1; // TOC entries are repeated 3 times
+        const int point = (((sector - 1) / 3) % (3 + m_cueDisc.trackCount)) + 1; // TOC entries are repeated 3 times
 
         if (point <= m_cueDisc.trackCount) // TOC Entries
         {
             int logical_track = point;
-            if (logical_track == 1) // 2 sec pause track
+            if (logical_track == 1)
             {
+                // Track 1 has a hardcoded 2 second pre-gap
                 sector_track = c_preGap;
             }
             else
             {
-                sector_track = m_cueDisc.tracks[logical_track].fileOffset - c_leadIn;
+                // Offset each track by track 1's pre-gap
+                sector_track = m_cueDisc.tracks[logical_track].indices[1] + c_preGap;
             }
             subqdata->ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
             subqdata->tno = 0x00;
@@ -86,7 +88,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             subqdata->psec = toBCD((sector_track / 75) % 60);
             subqdata->pframe = toBCD(sector_track % 75);
         }
-        else if (point == m_cueDisc.trackCount + 1) // A0
+        else if (point == m_cueDisc.trackCount + 1) // A0 - Report first track number
         {
             subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
@@ -95,7 +97,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             subqdata->psec = m_hasData ? 0x20 : 0x00; // 0 = audio, 20 = CDROM-XA
             subqdata->pframe = 0x00;
         }
-        else if (point == m_cueDisc.trackCount + 2) // A1
+        else if (point == m_cueDisc.trackCount + 2) // A1 - Report last track number
         {
             subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
@@ -104,9 +106,9 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             subqdata->psec = 0x00;
             subqdata->pframe = 0x00;
         }
-        else if (point == m_cueDisc.trackCount + 3) // A2
+        else if (point == m_cueDisc.trackCount + 3) // A2 - Report lead-out track location
         {
-            const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset - c_leadIn;
+            const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1];
             subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->point = 0xA2;
@@ -126,13 +128,13 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         int logical_track = m_cueDisc.trackCount + 1; // in case seek overshoots past end of disc
         for (int i = 0; i < m_cueDisc.trackCount + 2; i++)
         { // + 2 for lead in & lead out
-            if (m_cueDisc.tracks[i + 1].fileOffset > sector)
+            if (m_cueDisc.tracks[i + 1].indices[1] > sector - c_leadIn)
             {
                 logical_track = i;
                 break;
             }
         }
-        sector_track = sector - m_cueDisc.tracks[logical_track].fileOffset;
+        sector_track = sector - m_cueDisc.tracks[logical_track].indices[1] - c_leadIn;
         const int sector_abs = (sector - c_leadIn);
         m_currentLogicalTrack = logical_track;
 
@@ -170,94 +172,6 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
     }
 }
 
-// WIP
-/*FRESULT picostation::DiscImage::loadv2(const TCHAR *targetCue)
-{
-    int logical_track = 0;
-    m_cueDisc.trackCount = 0;
-    FIL fil = {0};
-    FRESULT fr;
-
-    TCHAR parentPath[128];
-
-    if (&fil)
-    {
-        f_close(&fil);
-    }
-
-    DEBUG_PRINT("Opening files: cue:'%s'\n", targetCue);
-
-    fr = f_open(&fil, targetCue, FA_READ); // Open cue sheet
-    if (fr == FR_OK)
-    {
-        // Get filesize
-        int filesize = f_size(&fil);
-        UINT br;
-        bool fEOF = false;
-        char c;
-        char keyword[128] = {0};
-        int keywordIndex = 0;
-        char word[128] = {0};
-        int wordIndex = 0;
-
-        bool inQuotes = false;
-        bool afterQuotes = true;
-
-        if (filesize > 0)
-        {
-            DEBUG_PRINT("Filesize: %d\n", filesize);
-            {
-                while (f_read(&fil, &c, 1, &br) == FR_OK && !fEOF)
-                {
-                    fEOF = f_eof(&fil);
-                    bool isEOW = isspace(c);
-                    bool isEOL = (c == '\r') || (c == '\n');
-                    bool isSpace = isEOW && !isEOL;
-                    if (!isEOW && !inQuotes)
-                    {
-                        if (keywordIndex < 128)
-                        {
-                            keyword[keywordIndex++] = c;
-                        }
-                    }
-                    else
-                    {
-                        printf("Keyword: %s\n", keyword);
-                        memset(keyword, 0, 128);
-                        keyword[keywordIndex] = 0;
-                        keywordIndex = 0;
-                    }
-
-                    if (inQuotes)
-                    {
-                        if (c == '"')
-                        {
-                            inQuotes = false;
-                            afterQuotes = true;
-                            printf("Quotes: %s\n", word);
-                        }
-                        else
-                        {
-                            if (wordIndex < 128)
-                            {
-                                word[wordIndex++] = c;
-                            }
-                        }
-                    }
-                    // DEBUG_PRINT("%c", c);
-                }
-            }
-        }
-
-        f_close(&fil);
-
-        getParentPath(targetCue, parentPath);
-        DEBUG_PRINT("Parent path: %s\n", parentPath);
-    }
-
-    return fr;
-}*/
-
 struct Context
 {
     TCHAR parentPath[128];
@@ -294,7 +208,7 @@ static struct CueFile *fileopen(struct CueFile *file, struct CueScheduler *sched
     return create_posix_file(file, fullpath, "r");
 }
 
-FRESULT picostation::DiscImage::load(const TCHAR *targetCue, const TCHAR *targetBin)
+FRESULT picostation::DiscImage::load(const TCHAR *targetCue)
 {
 
     struct CueScheduler scheduler;
@@ -305,7 +219,6 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue, const TCHAR *target
 
     struct CueFile cue;
     struct CueParser parser;
-    // struct CueDisc disc;
 
     if (!create_posix_file(&cue, targetCue, "r"))
     {
@@ -317,111 +230,24 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue, const TCHAR *target
     Scheduler_run(&scheduler);
     CueParser_close(&parser, &scheduler, close_cb);
 
-    m_hasData = true;
-
     printf("Disc track count: %d\n", m_cueDisc.trackCount);
-    for(int i = 0; i < m_cueDisc.trackCount; i++)
+
+    // Lead-out
+    m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset = m_cueDisc.tracks[m_cueDisc.trackCount].indices[1] + m_cueDisc.tracks[m_cueDisc.trackCount].size;
+    m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[0] = m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset + c_preGap;
+    m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1] = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[0];
+    //m_cueDisc.tracks[m_cueDisc.trackCount + 1].size = 0; // ?
+
+    m_hasData = false;
+    DEBUG_PRINT("Track\tStart\tLength\tPregap\n");
+    for (int i = 0; i <= m_cueDisc.trackCount + 1; i++)
     {
-        printf("Track %d: Offset %d\n", i, m_cueDisc.tracks[i].fileOffset);
-        printf ("Track %d: Type %d\n", i, m_cueDisc.tracks[i].trackType);
+        if (m_cueDisc.tracks[i].trackType == CueTrackType::TRACK_TYPE_DATA)
+        {
+            m_hasData = true;
+        }
+        DEBUG_PRINT("%d\t%d\t%d\t%d\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size, m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
     }
-
-    /*
-        char buf[128];
-        int logical_track = 0;
-        m_cueDisc.trackCount = 0;
-        FRESULT fr;
-
-        TCHAR parentPath[128];
-
-        if (&m_fil)
-        {
-            f_close(&m_fil);
-        }
-
-        DEBUG_PRINT("Opening files: cue:'%s'\n", targetCue);
-
-        fr = f_open(&m_fil, targetCue, FA_READ); // Open cue sheet
-        if (fr == FR_OK)
-        {
-            f_gets(buf, 128, &m_fil);
-
-            while (1)
-            {
-                f_gets(buf, 128, &m_fil);
-                char *token = strtok(buf, " ");
-                if (strcmp("TRACK", token) == 0)
-                {
-                    m_cueDisc.trackCount++;
-                }
-                if (f_eof(&m_fil))
-                {
-                    break;
-                }
-            }
-
-            f_rewind(&m_fil);
-            DEBUG_PRINT("Logical tracks: %d\n", m_cueDisc.trackCount);
-
-            m_cueDisc.tracks[0].fileOffset = 0;        // Lead-in / TOC
-            m_cueDisc.tracks[1].fileOffset = c_leadIn; // 4500-4650 - 2 sec pre-gap
-
-            f_gets(buf, 128, &m_fil);
-            while (1)
-            {
-                f_gets(buf, 128, &m_fil);
-
-                if (f_eof(&m_fil))
-                {
-                    break;
-                }
-                char *token;
-                token = strtok(buf, " ");
-                if (strcmp("TRACK", token) == 0)
-                {
-                    token = strtok(NULL, " ");
-                    logical_track = atoi(token);
-                }
-                token = strtok(NULL, " ");
-                token[strcspn(token, "\r\n")] = 0;
-                m_cueDisc.tracks[logical_track].trackType = strcmp("AUDIO", token) ? CueTrackType::TRACK_TYPE_DATA : CueTrackType::TRACK_TYPE_AUDIO;
-                if (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA)
-                {
-                    m_hasData = true;
-                }
-                f_gets(buf, 128, &m_fil);
-                token = strtok(buf, " ");
-                token = strtok(NULL, " ");
-                token = strtok(NULL, " ");
-
-                int mm = atoi(strtok(token, ":"));
-                int ss = atoi(strtok(NULL, ":"));
-                int ff = atoi(strtok(NULL, ":"));
-                if (logical_track != 1)
-                {
-                    m_cueDisc.tracks[logical_track].fileOffset = msfToSector(mm, ss, ff) + c_leadIn + c_preGap;
-                }
-                DEBUG_PRINT("cue: %d %d %d %d\n", logical_track, mm, ss, ff);
-            }
-
-            f_close(&m_fil);
-            fr = f_open(&m_fil, targetBin, FA_READ);
-            if (FR_OK != fr && FR_EXIST != fr)
-                panic("f_open(%s) %s error: (%d)\n", targetBin, FRESULT_str(fr), fr);
-
-            m_cueDisc.tracks[0].trackType = CueTrackType::TRACK_TYPE_UNKNOWN;
-            m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset = (f_size(&m_fil) / 2352) + c_leadIn + c_preGap; // Lead-out
-            m_cueDisc.tracks[m_cueDisc.trackCount + 1].trackType = CueTrackType::TRACK_TYPE_UNKNOWN;
-
-            for (int i = 1; i <= m_cueDisc.trackCount; i++)
-            {
-                DEBUG_PRINT("sector_t: track: %d %d data: %d\n", i, m_cueDisc.tracks[i].fileOffset, m_cueDisc.tracks[i].trackType == CueTrackType::TRACK_TYPE_DATA);
-            }
-        }
-        else
-        {
-            panic("f_open(%s) %s error: (%d)\n", targetCue, FRESULT_str(fr), fr);
-        }*/
 
     return FR_OK;
 }
@@ -430,20 +256,35 @@ void picostation::DiscImage::readData(void *buffer, int sector, int count)
 {
     FRESULT fr;
     UINT br;
-    const uint64_t seekBytes = (sector - (c_leadIn + c_preGap)) * 2352LL;
-    if (seekBytes >= 0)
+
+    for (int i = 1; i <= m_cueDisc.trackCount + 1; i++)
     {
-        fr = f_lseek((FIL *)m_cueDisc.tracks[1].file->opaque, seekBytes);
-        if (FR_OK != fr)
+        if (sector < m_cueDisc.tracks[i + 1].indices[0])
         {
-            f_rewind((FIL *)m_cueDisc.tracks[1].file->opaque);
-            panic("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
+            int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
+            if (seekBytes >= 0)
+            {
+                fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
+                if (FR_OK != fr)
+                {
+                    f_rewind((FIL *)m_cueDisc.tracks[i].file->opaque);
+                    panic("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
+                }
+            }
+
+            fr = f_read((FIL *)m_cueDisc.tracks[i].file->opaque, buffer, c_cdSamplesBytes, &br);
+            if (FR_OK != fr)
+            {
+                panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
+            }
+            else if (br != c_cdSamplesBytes)
+            {
+                printf("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
+                printf("Seek bytes: %llu\n", seekBytes);
+                panic("f_read(%s) error: (%d) read: %d\n", FRESULT_str(fr), fr, br);
+            }
+            return;
         }
     }
-
-    fr = f_read((FIL *)m_cueDisc.tracks[1].file->opaque, buffer, c_cdSamplesBytes, &br);
-    if (FR_OK != fr)
-    {
-        panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
-    }
+    printf("Sector not found: %d\n", sector);
 }
