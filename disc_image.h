@@ -10,7 +10,6 @@
 
 #include "subq.h"
 
-
 namespace picostation
 {
     class DiscImage
@@ -29,12 +28,10 @@ namespace picostation
         bool isCurrentTrackData() { return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA; };
         void readData(void *buffer, int sector, int count);
 
-    private:
         CueDisc m_cueDisc;
 
+    private:
         bool m_hasData = false;
         int m_currentLogicalTrack = 0;
-
-        //FIL m_fil = {0};
     };
 } // namespace picostation

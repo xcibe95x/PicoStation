@@ -31,7 +31,7 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-uint g_latched = 0;                    // Mechacon command latch
+uint g_latched = 0;                  // Mechacon command latch
 volatile bool g_soctEnabled = false; // Serial Read Out Circuit
 uint g_countTrack = 0;
 uint g_track = 0;
@@ -107,7 +107,7 @@ void clampSectorTrackLimits()
 
     if (g_track > c_trackMax || g_sector > c_sectorMax)
     {
-        DEBUG_PRINT("Clamping sector/track, above max\n");
+        DEBUG_PRINT("Clamping sector/track, above max: track %d sector %d\n", g_track, g_sector);
         g_track = c_trackMax;
         g_sector = trackToSector(g_track);
         g_sectorForTrackUpdate = g_sector;

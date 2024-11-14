@@ -63,8 +63,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
 {
     int sector_track;
 
-    // Lead-in
-    if (sector < c_leadIn)
+    if (sector < c_leadIn) // Lead-in area
     {
         const int point = (((sector - 1) / 3) % (3 + m_cueDisc.trackCount)) + 1; // TOC entries are repeated 3 times
 
@@ -108,7 +107,7 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         }
         else if (point == m_cueDisc.trackCount + 3) // A2 - Report lead-out track location
         {
-            const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1];
+            const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1] + c_preGap;
             subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->point = 0xA2;
@@ -126,15 +125,24 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
     else // Program area + lead-out
     {
         int logical_track = m_cueDisc.trackCount + 1; // in case seek overshoots past end of disc
-        for (int i = 0; i < m_cueDisc.trackCount + 2; i++)
-        { // + 2 for lead in & lead out
-            if (m_cueDisc.tracks[i + 1].indices[1] > sector - c_leadIn)
-            {
-                logical_track = i;
-                break;
+
+        if (sector - c_leadIn < c_preGap)
+        {
+            logical_track = 1;
+        }
+        else
+        {
+            for (int i = 1; i < m_cueDisc.trackCount + 2; i++)
+            { // + 2 for lead in & lead out
+                if (m_cueDisc.tracks[i + 1].indices[0] > sector - c_leadIn - c_preGap)
+                {
+                    logical_track = i;
+                    break;
+                }
             }
         }
-        sector_track = sector - m_cueDisc.tracks[logical_track].indices[1] - c_leadIn;
+        sector_track = sector - m_cueDisc.tracks[logical_track].indices[1] - c_leadIn - c_preGap;
+
         const int sector_abs = (sector - c_leadIn);
         m_currentLogicalTrack = logical_track;
 
@@ -148,21 +156,19 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         {
             subqdata->tno = toBCD(logical_track); // Track numbers
         }
-        if (sector_track < c_preGap && logical_track == 1)
-        { // 2 sec pause track
-            subqdata->x = 0x00;
-            subqdata->min = 0x00;                              // min
-            subqdata->sec = toBCD(1 - (sector_track / 75));    // sec (count down)
-            subqdata->frame = toBCD(74 - (sector_track % 75)); // frame (count down)
+        if (sector_track < 0)
+        {                                                    // 2 sec pause track
+            subqdata->x = 0x00;                              // Pause encoding
+            subqdata->min = 0x00;                            // min
+            subqdata->sec = toBCD((abs(sector_track) / 75)); // sec (count down)
+            subqdata->frame = toBCD(abs(sector_track) % 75); // frame (count down)
         }
         else
         {
-            const int sector_track_after_pause = (logical_track == 1) ? sector_track - c_preGap : sector_track;
-
             subqdata->x = 0x01;
-            subqdata->min = toBCD(sector_track_after_pause / 75 / 60);
-            subqdata->sec = toBCD((sector_track_after_pause / 75) % 60);
-            subqdata->frame = toBCD(sector_track_after_pause % 75);
+            subqdata->min = toBCD(sector_track / 75 / 60);
+            subqdata->sec = toBCD((sector_track / 75) % 60);
+            subqdata->frame = toBCD(sector_track % 75);
         }
         subqdata->zero = 0x00;
         subqdata->amin = toBCD(sector_abs / 75 / 60);
@@ -181,20 +187,20 @@ static void close_cb(struct CueParser *parser, struct CueScheduler *scheduler, c
 {
     if (error)
     {
-        printf("Error closing cue parser: %s\n", error);
+        DEBUG_PRINT("Error closing cue parser: %s\n", error);
     }
 }
 
 static void size_cb(struct CueFile *file, struct CueScheduler *scheduler, uint64_t size)
 {
-    printf("File size: %zu\n", size);
+    DEBUG_PRINT("File size: %zu\n", size);
 }
 
 static void parser_cb(struct CueParser *parser, struct CueScheduler *scheduler, const char *error)
 {
     if (error)
     {
-        printf("parser error: %s\n", error);
+        DEBUG_PRINT("parser error: %s\n", error);
     }
 }
 
@@ -222,7 +228,7 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue)
 
     if (!create_posix_file(&cue, targetCue, "r"))
     {
-        printf("create_posix_file failed for: %s.\n", targetCue);
+        DEBUG_PRINT("create_posix_file failed for: %s.\n", targetCue);
     }
     cue.cfilename = targetCue;
     CueParser_construct(&parser, &m_cueDisc);
@@ -230,13 +236,12 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue)
     Scheduler_run(&scheduler);
     CueParser_close(&parser, &scheduler, close_cb);
 
-    printf("Disc track count: %d\n", m_cueDisc.trackCount);
+    DEBUG_PRINT("Disc track count: %d\n", m_cueDisc.trackCount);
 
     // Lead-out
     m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset = m_cueDisc.tracks[m_cueDisc.trackCount].indices[1] + m_cueDisc.tracks[m_cueDisc.trackCount].size;
-    m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[0] = m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset + c_preGap;
+    m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[0] = m_cueDisc.tracks[m_cueDisc.trackCount + 1].fileOffset;
     m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1] = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[0];
-    //m_cueDisc.tracks[m_cueDisc.trackCount + 1].size = 0; // ?
 
     m_hasData = false;
     DEBUG_PRINT("Track\tStart\tLength\tPregap\n");
@@ -279,12 +284,13 @@ void picostation::DiscImage::readData(void *buffer, int sector, int count)
             }
             else if (br != c_cdSamplesBytes)
             {
-                printf("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
-                printf("Seek bytes: %llu\n", seekBytes);
+                DEBUG_PRINT("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
+                DEBUG_PRINT("Seek bytes: %llu\n", seekBytes);
                 panic("f_read(%s) error: (%d) read: %d\n", FRESULT_str(fr), fr, br);
             }
             return;
         }
     }
-    printf("Sector not found: %d\n", sector);
+    memset(buffer, 0, count);
+    DEBUG_PRINT("Sector not found: %d\n", sector);
 }
