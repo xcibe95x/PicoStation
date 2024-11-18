@@ -23,9 +23,20 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-static inline int msfToSector(int mm, int ss, int ff)
+struct MSF
 {
-    return (mm * 60 * 75 + ss * 75 + ff);
+    int mm;
+    int ss;
+    int ff;
+};
+
+static MSF sectorToMSF(int sector)
+{
+    MSF msf;
+    msf.mm = abs(sector / 75 / 60);
+    msf.ss = abs((sector / 75) % 60);
+    msf.ff = abs(sector % 75);
+    return msf;
 }
 
 static inline int toBCD(int in)
@@ -80,16 +91,18 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
                 // Offset each track by track 1's pre-gap
                 sector_track = m_cueDisc.tracks[logical_track].indices[1] + c_preGap;
             }
+            const MSF msf_track = sectorToMSF(sector_track);
+
             subqdata->ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->x = toBCD(logical_track);
-            subqdata->pmin = toBCD(sector_track / 75 / 60);
-            subqdata->psec = toBCD((sector_track / 75) % 60);
-            subqdata->pframe = toBCD(sector_track % 75);
+            subqdata->pmin = toBCD(msf_track.mm);
+            subqdata->psec = toBCD(msf_track.ss);
+            subqdata->pframe = toBCD(msf_track.ff);
         }
         else if (point == m_cueDisc.trackCount + 1) // A0 - Report first track number
         {
-            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
+            subqdata->ctrladdr = m_cueDisc.tracks[1].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->point = 0xA0;
             subqdata->pmin = 0x01;
@@ -98,7 +111,8 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         }
         else if (point == m_cueDisc.trackCount + 2) // A1 - Report last track number
         {
-            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
+            // Thanks rama! )
+            subqdata->ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->point = 0xA1;
             subqdata->pmin = toBCD(m_cueDisc.trackCount);
@@ -107,18 +121,21 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         }
         else if (point == m_cueDisc.trackCount + 3) // A2 - Report lead-out track location
         {
+            // <3
             const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1] + c_preGap;
-            subqdata->ctrladdr = m_hasData ? 0x41 : 0x01;
+            const MSF msf_lead_out = sectorToMSF(sector_lead_out);
+            subqdata->ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
             subqdata->tno = 0x00;
             subqdata->point = 0xA2;
-            subqdata->pmin = toBCD(sector_lead_out / 75 / 60);
-            subqdata->psec = toBCD((sector_lead_out / 75) % 60);
-            subqdata->pframe = toBCD(sector_lead_out % 75);
+            subqdata->pmin = toBCD(msf_lead_out.mm);
+            subqdata->psec = toBCD(msf_lead_out.ss);
+            subqdata->pframe = toBCD(msf_lead_out.ff);
         }
 
-        subqdata->min = toBCD(sector / 75 / 60);
-        subqdata->sec = toBCD((sector / 75) % 60);
-        subqdata->frame = toBCD(sector % 75);
+        const MSF msf_sector = sectorToMSF(sector);
+        subqdata->min = toBCD(msf_sector.mm);
+        subqdata->sec = toBCD(msf_sector.ss);
+        subqdata->frame = toBCD(msf_sector.ff);
         subqdata->zero = 0x00;
         subqdata->crc = 0x00;
     }
@@ -142,8 +159,10 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             }
         }
         sector_track = sector - m_cueDisc.tracks[logical_track].indices[1] - c_leadIn - c_preGap;
+        const MSF msf_track = sectorToMSF(sector_track);
 
         const int sector_abs = (sector - c_leadIn);
+        const MSF msf_abs = sectorToMSF(sector_abs);
         m_currentLogicalTrack = logical_track;
 
         subqdata->ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
@@ -157,23 +176,23 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             subqdata->tno = toBCD(logical_track); // Track numbers
         }
         if (sector_track < 0)
-        {                                                    // 2 sec pause track
-            subqdata->x = 0x00;                              // Pause encoding
-            subqdata->min = 0x00;                            // min
-            subqdata->sec = toBCD((abs(sector_track) / 75)); // sec (count down)
-            subqdata->frame = toBCD(abs(sector_track) % 75); // frame (count down)
+        {                                          // 2 sec pause track
+            subqdata->x = 0x00;                    // Pause encoding
+            subqdata->min = 0x00;                  // min
+            subqdata->sec = toBCD(msf_track.ss);   // sec (count down)
+            subqdata->frame = toBCD(msf_track.ff); // frame (count down)
         }
         else
         {
             subqdata->x = 0x01;
-            subqdata->min = toBCD(sector_track / 75 / 60);
-            subqdata->sec = toBCD((sector_track / 75) % 60);
-            subqdata->frame = toBCD(sector_track % 75);
+            subqdata->min = toBCD(msf_track.mm);
+            subqdata->sec = toBCD(msf_track.ss);
+            subqdata->frame = toBCD(msf_track.ff);
         }
         subqdata->zero = 0x00;
-        subqdata->amin = toBCD(sector_abs / 75 / 60);
-        subqdata->asec = toBCD((sector_abs / 75) % 60);
-        subqdata->aframe = toBCD(sector_abs % 75);
+        subqdata->amin = toBCD(msf_abs.mm);
+        subqdata->asec = toBCD(msf_abs.ss);
+        subqdata->aframe = toBCD(msf_abs.ff);
         subqdata->crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
 }
@@ -257,40 +276,48 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue)
     return FR_OK;
 }
 
-void picostation::DiscImage::readData(void *buffer, int sector, int count)
+void picostation::DiscImage::readData(void *buffer, int sector)
 {
     FRESULT fr;
-    UINT br;
+    UINT br = 0;
 
     for (int i = 1; i <= m_cueDisc.trackCount + 1; i++)
     {
         if (sector < m_cueDisc.tracks[i + 1].indices[0])
         {
-            int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
-            if (seekBytes >= 0)
+            if (m_cueDisc.tracks[i].file->opaque)
             {
-                fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
+                int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
+                if (seekBytes >= 0)
+                {
+                    fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
+                    if (FR_OK != fr)
+                    {
+                        f_rewind((FIL *)m_cueDisc.tracks[i].file->opaque);
+                        // panic("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
+                        DEBUG_PRINT("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
+                    }
+                }
+
+                fr = f_read((FIL *)m_cueDisc.tracks[i].file->opaque, buffer, c_cdSamplesBytes, &br);
                 if (FR_OK != fr)
                 {
-                    f_rewind((FIL *)m_cueDisc.tracks[i].file->opaque);
-                    panic("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
+                    // panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
+                    DEBUG_PRINT("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
                 }
+                else if (br != c_cdSamplesBytes)
+                {
+                    // DEBUG_PRINT("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
+                    // DEBUG_PRINT("Seek bytes: %llu\n", seekBytes);
+                    // DEBUG_PRINT("f_read(%s) error: (%d) read: %d\n", FRESULT_str(fr), fr, br);
+                }
+                break;
             }
-
-            fr = f_read((FIL *)m_cueDisc.tracks[i].file->opaque, buffer, c_cdSamplesBytes, &br);
-            if (FR_OK != fr)
-            {
-                panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
-            }
-            else if (br != c_cdSamplesBytes)
-            {
-                DEBUG_PRINT("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
-                DEBUG_PRINT("Seek bytes: %llu\n", seekBytes);
-                panic("f_read(%s) error: (%d) read: %d\n", FRESULT_str(fr), fr, br);
-            }
-            return;
         }
     }
-    memset(buffer, 0, count);
-    DEBUG_PRINT("Sector not found: %d\n", sector);
+    if (br < c_cdSamplesBytes)
+    {
+        memset((uint8_t *)buffer + br, 0, c_cdSamplesBytes - br);
+    }
+    // DEBUG_PRINT("Sector not found: %d\n", sector);
 }

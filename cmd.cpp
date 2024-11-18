@@ -49,8 +49,8 @@ namespace Spindle
 
 extern uint g_latched;
 extern uint g_countTrack;
-extern uint g_track;
-extern uint g_originalTrack;
+extern int g_track;
+extern int g_originalTrack;
 
 extern int g_sledMoveDirection;
 
@@ -69,6 +69,11 @@ extern volatile uint g_imageIndex;
 static uint s_jumpTrack = 0;
 
 void setSens(uint what, bool new_value);
+
+int64_t alarm_callback(alarm_id_t id, void *user_data) {
+    setSens(SENS::XBUSY, 0);
+    return 0;
+}
 
 inline void autoSequence() // $4X
 {
@@ -125,15 +130,17 @@ inline void autoSequence() // $4X
 
     if (reverse_jump)
     {
-        g_track -= tracks_to_move;
+        g_track = clamp(g_track - tracks_to_move, 0, c_trackMax);
     }
     else
     {
-        g_track += tracks_to_move;
+        g_track = clamp(g_track + tracks_to_move, 0, c_trackMax);
     }
 
     g_sector = trackToSector(g_track);
     g_sectorForTrackUpdate = g_sector;
+
+    add_alarm_in_us(3333, alarm_callback, NULL, false);
 }
 
 inline void funcSpec() // $9X
@@ -182,12 +189,12 @@ inline void trackingMode() // $2X
     switch (subcommand_tracking) // Tracking servo
     {
     case 8: // Forward track jump
-        g_track++;
+        g_track = clamp(g_track + 1, 0, c_trackMax);
         g_sector = trackToSector(g_track);
         g_sectorForTrackUpdate = g_sector;
         break;
     case 0xC: // Reverse track jump
-        g_track--;
+        g_track = clamp(g_track - 1, 0, c_trackMax);
         g_sector = trackToSector(g_track);
         g_sectorForTrackUpdate = g_sector;
         break;

@@ -26,7 +26,7 @@ namespace picostation
         int logicalTrackToSector(int logicalTrack) { return m_cueDisc.tracks[logicalTrack].fileOffset; };
         bool hasData() { return m_hasData; };
         bool isCurrentTrackData() { return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA; };
-        void readData(void *buffer, int sector, int count);
+        void readData(void *buffer, int sector);
 
         CueDisc m_cueDisc;
 

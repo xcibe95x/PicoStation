@@ -65,7 +65,7 @@ void start_subq(int sector)
     send_subq(tracksubq.raw);
 
 #if DEBUG_SUBQ
-    if (sector % (50 + g_discImage.numLogicalTracks()) == 0)
+    if (sector % 50 == 0)
     {
         printf_subq(tracksubq.raw);
         DEBUG_PRINT("%d\n", sector);

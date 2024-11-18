@@ -78,7 +78,6 @@ void mountSDCard()
 {
     sd_card_t *pSD = sd_get_by_num(0);
     FRESULT fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
-    
     if (FR_OK != fr)
     {
         panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
@@ -90,7 +89,6 @@ void __time_critical_func(i2sDataThread)()
     static constexpr int c_sectorCache = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
-    uint bytes_read;
     uint32_t pio_samples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0, 0};
     s_psneeTimer = time_us_64();
     uint64_t sector_change_timer = 0;
@@ -128,15 +126,15 @@ void __time_critical_func(i2sDataThread)()
 
     while (true)
     {
-        // Sector could change during the loop, so we need to keep track of it
-        current_sector = g_sector;
-
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0))
         {
             updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
+
+        // Sector could change during the loop, so we need to keep track of it
+        current_sector = g_sector;
 
         psnee(current_sector);
 
@@ -169,7 +167,7 @@ void __time_critical_func(i2sDataThread)()
 
             // Sector cache lookup/update
             int cache_hit = -1;
-            int sector_to_search = current_sector < c_leadIn + c_preGap ? (current_sector % c_sectorCache) + c_leadIn + c_preGap : current_sector;
+            int sector_to_search = current_sector < c_leadIn + c_preGap ? c_leadIn + c_preGap : current_sector;
             for (int i = 0; i < c_sectorCache; i++)
             {
                 if (cached_sectors[i] == sector_to_search)
@@ -181,7 +179,7 @@ void __time_critical_func(i2sDataThread)()
 
             if (cache_hit == -1)
             {
-                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search - c_leadIn - c_preGap, c_cdSamples);
+                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search - c_leadIn - c_preGap);
 
                 cached_sectors[round_robin_cache_index] = sector_to_search;
                 cache_hit = round_robin_cache_index;
@@ -189,31 +187,24 @@ void __time_critical_func(i2sDataThread)()
             }
 
             // Copy CD samples to PIO buffer
-            if (current_sector >= c_leadIn + c_preGap)
+            for (int i = 0; i < c_cdSamples * 2; i++)
             {
-                for (int i = 0; i < c_cdSamples * 2; i++)
+                uint32_t i2s_data;
+                if (g_discImage.isCurrentTrackData())
                 {
-                    uint32_t i2s_data;
-                    if (g_discImage.isCurrentTrackData())
-                    {
-                        i2s_data = (cd_samples[cache_hit][i] ^ cd_scrambling_key[i]) << 8;
-                    }
-                    else
-                    {
-                        i2s_data = (cd_samples[cache_hit][i]) << 8;
-                    }
-
-                    if (i2s_data & 0x100)
-                    {
-                        i2s_data |= 0xFF;
-                    }
-
-                    pio_samples[buffer_for_sd_read][i] = i2s_data;
+                    i2s_data = (cd_samples[cache_hit][i] ^ cd_scrambling_key[i]) << 8;
                 }
-            }
-            else
-            {
-                memset(pio_samples[buffer_for_sd_read], 0, c_cdSamplesBytes * 2);
+                else
+                {
+                    i2s_data = (cd_samples[cache_hit][i]) << 8;
+                }
+
+                if (i2s_data & 0x100)
+                {
+                    i2s_data |= 0xFF;
+                }
+
+                pio_samples[buffer_for_sd_read][i] = i2s_data;
             }
 
             sector_loaded[buffer_for_sd_read] = current_sector;
@@ -227,6 +218,7 @@ void __time_critical_func(i2sDataThread)()
 
             dma_hw->ch[channel].read_addr = (uint32_t)pio_samples[buffer_for_dma];
 
+            // Sync with the I2S clock
             while (gpio_get(Pin::LRCK) == 1)
             {
                 tight_loop_contents();

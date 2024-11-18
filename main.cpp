@@ -34,8 +34,8 @@
 uint g_latched = 0;                  // Mechacon command latch
 volatile bool g_soctEnabled = false; // Serial Read Out Circuit
 uint g_countTrack = 0;
-uint g_track = 0;
-uint g_originalTrack = 0;
+int g_track = 0;
+int g_originalTrack = 0;
 
 int g_sledMoveDirection = SledMove::STOP;
 
@@ -85,34 +85,11 @@ volatile bool g_sensData[16] = {
 
 picostation::DiscImage g_discImage;
 
-void clampSectorTrackLimits();
 void initialize();
 void updatePlaybackSpeed();
 void maybeReset();
 void setSens(uint what, bool new_value);
 void __time_critical_func(updateMechSens)();
-
-void clampSectorTrackLimits()
-{
-    static constexpr uint c_trackMax = 20892;  // 73:59:58
-    static constexpr int c_sectorMax = 333000; // 74:00:00
-
-    if (g_track < 0 || g_sector < 0)
-    {
-        DEBUG_PRINT("Clamping sector/track, below 0: track %d sector %d\n", g_track, g_sector);
-        g_track = 0;
-        g_sector = 0;
-        g_sectorForTrackUpdate = 0;
-    }
-
-    if (g_track > c_trackMax || g_sector > c_sectorMax)
-    {
-        DEBUG_PRINT("Clamping sector/track, above max: track %d sector %d\n", g_track, g_sector);
-        g_track = c_trackMax;
-        g_sector = trackToSector(g_track);
-        g_sectorForTrackUpdate = g_sector;
-    }
-}
 
 void initialize()
 {
@@ -350,7 +327,6 @@ int __time_critical_func(main)()
         }
 
         updatePlaybackSpeed();
-        clampSectorTrackLimits();
 
         // Check for reset signal
         maybeReset();
@@ -369,7 +345,7 @@ int __time_critical_func(main)()
         {
             if ((time_us_64() - sled_timer) > c_MaxTrackMoveTime)
             {
-                g_track += g_sledMoveDirection; // +1 or -1
+                g_track = clamp(g_track + g_sledMoveDirection, 0, c_trackMax); // +1 or -1
                 g_sector = trackToSector(g_track);
                 g_sectorForTrackUpdate = g_sector;
 
@@ -389,18 +365,17 @@ int __time_critical_func(main)()
             {
                 if ((time_us_64() - subq_delay_time) > c_MaxSubqDelayTime)
                 {
-                    setSens(SENS::XBUSY, 0);
                     g_subqDelay = false;
                     start_subq(g_sector);
                 }
             }
             else if (g_sectorSending == g_sector)
             {
-                g_sector++;
+                g_sector = clamp(g_sector + 1, 0, c_sectorMax);
                 if ((g_sector - g_sectorForTrackUpdate) >= sector_per_track) // Moved to next track?
                 {
                     g_sectorForTrackUpdate = g_sector;
-                    g_track++;
+                    g_track = clamp(g_track + 1, 0, c_trackMax);
                     sector_per_track = sectorsPerTrack(g_track);
                 }
                 g_subqDelay = true;

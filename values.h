@@ -68,5 +68,8 @@ constexpr int NUM_IMAGES = 1;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
 
-static constexpr size_t c_cdSamples = 588;
-static constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
+constexpr uint c_trackMax = 20892;  // 73:59:58
+constexpr int c_sectorMax = 333000; // 74:00:00
+
+constexpr size_t c_cdSamples = 588;
+constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
