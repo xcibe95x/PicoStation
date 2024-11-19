@@ -27,7 +27,10 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-const TCHAR target_Cues[NUM_IMAGES][128] = {
+// To-do:
+// This was a placeholder for multi-cue support
+// but need a console side menu to select the cue file still
+const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
 

@@ -53,6 +53,7 @@ extern int g_track;
 extern int g_originalTrack;
 
 extern int g_sledMoveDirection;
+extern uint64_t g_sledTimer;
 
 extern volatile int g_sector;
 extern int g_sectorForTrackUpdate;
@@ -66,14 +67,12 @@ extern volatile bool g_soctEnabled;
 extern uint g_soctOffset;
 extern volatile uint g_imageIndex;
 
-static uint s_jumpTrack = 0;
+static int s_autoSeqTrack = 0;
+static int s_jumpTrack = 0;
+
+static alarm_id_t s_autoSeqAlarmID = 0;
 
 void setSens(uint what, bool new_value);
-
-int64_t alarm_callback(alarm_id_t id, void *user_data) {
-    setSens(SENS::XBUSY, 0);
-    return 0;
-}
 
 inline void autoSequence() // $4X
 {
@@ -130,17 +129,25 @@ inline void autoSequence() // $4X
 
     if (reverse_jump)
     {
-        g_track = clamp(g_track - tracks_to_move, 0, c_trackMax);
+        s_autoSeqTrack = g_track - tracks_to_move;
     }
     else
     {
-        g_track = clamp(g_track + tracks_to_move, 0, c_trackMax);
+        s_autoSeqTrack = g_track + tracks_to_move;
     }
 
-    g_sector = trackToSector(g_track);
-    g_sectorForTrackUpdate = g_sector;
-
-    add_alarm_in_us(3333, alarm_callback, NULL, false);
+    if (!s_autoSeqAlarmID)
+    {
+        s_autoSeqAlarmID = add_alarm_in_ms(15, [](alarm_id_t id, void *user_data) -> int64_t
+                                           {
+            const int track = *(int *)user_data;
+            s_autoSeqAlarmID = 0;
+            g_track = clamp(track, 0, c_trackMax);
+            g_sector = trackToSector(g_track);
+            g_sectorForTrackUpdate = g_sector;
+            setSens(SENS::XBUSY, 0);
+            return 0; }, &s_autoSeqTrack, true);
+    }
 }
 
 inline void funcSpec() // $9X
@@ -221,8 +228,10 @@ inline void trackingMode() // $2X
             g_sectorForTrackUpdate = g_sector;
         }
         g_sledMoveDirection = SledMove::STOP;
-        break;
+        return;
     }
+
+    g_sledTimer = time_us_64();
 }
 
 inline void spindle()
@@ -293,6 +302,10 @@ void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events)
     case Command::FUNC_SPEC: // $9X commands - Function specification
         funcSpec();
         break;
+
+    /*case 0xA: // $AX commands - Audio CTRL
+        // printf("Audio CTRL %x\n", g_latched);
+        break;*/
 
     case Command::MONITOR_COUNT: // $BX commands - This command sets the traverse monitor count.
         g_countTrack = (g_latched & 0xFFFF0) >> 4;

@@ -38,6 +38,7 @@ int g_track = 0;
 int g_originalTrack = 0;
 
 int g_sledMoveDirection = SledMove::STOP;
+uint64_t g_sledTimer = 0;
 
 volatile int g_sector = 0;
 int g_sectorForTrackUpdate = 0;
@@ -298,7 +299,6 @@ int __time_critical_func(main)()
     static constexpr uint c_MaxTrackMoveTime = 15;   // uS
     static constexpr uint c_MaxSubqDelayTime = 3333; // uS
 
-    uint64_t sled_timer = 0;
     uint64_t subq_delay_time = 0;
 
     int sector_per_track = sectorsPerTrack(0);
@@ -343,7 +343,7 @@ int __time_critical_func(main)()
         }
         else if (g_sledMoveDirection != SledMove::STOP)
         {
-            if ((time_us_64() - sled_timer) > c_MaxTrackMoveTime)
+            if ((time_us_64() - g_sledTimer) > c_MaxTrackMoveTime)
             {
                 g_track = clamp(g_track + g_sledMoveDirection, 0, c_trackMax); // +1 or -1
                 g_sector = trackToSector(g_track);
@@ -356,7 +356,7 @@ int __time_critical_func(main)()
                     setSens(SENS::COUT, !g_sensData[SENS::COUT]);
                 }
 
-                sled_timer = time_us_64();
+                g_sledTimer = time_us_64();
             }
         }
         else if (g_sensData[SENS::GFS])
