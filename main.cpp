@@ -299,6 +299,7 @@ int __time_critical_func(main)()
     static constexpr uint c_MaxTrackMoveTime = 15;   // uS
     static constexpr uint c_MaxSubqDelayTime = 3333; // uS
 
+    picostation::SubQ subq(&g_discImage);
     uint64_t subq_delay_time = 0;
 
     int sector_per_track = sectorsPerTrack(0);
@@ -331,7 +332,7 @@ int __time_critical_func(main)()
         // Check for reset signal
         maybeReset();
 
-        // Soct/Sled/seek/autoseq
+        // Soct/Sled/seek
         if (g_soctEnabled)
         {
             uint interrupts = save_and_disable_interrupts();
@@ -366,7 +367,7 @@ int __time_critical_func(main)()
                 if ((time_us_64() - subq_delay_time) > c_MaxSubqDelayTime)
                 {
                     g_subqDelay = false;
-                    start_subq(g_sector);
+                    subq.start_subq(g_sector);
                 }
             }
             else if (g_sectorSending == g_sector)

@@ -70,8 +70,10 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath)
     }
 }
 
-void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
+picostation::SubQ::Data picostation::DiscImage::generateSubQ(int sector)
 {
+    SubQ::Data subqdata;
+    
     int sector_track;
 
     if (sector < c_leadIn) // Lead-in area
@@ -93,51 +95,51 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
             }
             const MSF msf_track = sectorToMSF(sector_track);
 
-            subqdata->ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
-            subqdata->tno = 0x00;
-            subqdata->x = toBCD(logical_track);
-            subqdata->pmin = toBCD(msf_track.mm);
-            subqdata->psec = toBCD(msf_track.ss);
-            subqdata->pframe = toBCD(msf_track.ff);
+            subqdata.ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
+            subqdata.tno = 0x00;
+            subqdata.x = toBCD(logical_track);
+            subqdata.pmin = toBCD(msf_track.mm);
+            subqdata.psec = toBCD(msf_track.ss);
+            subqdata.pframe = toBCD(msf_track.ff);
         }
         else if (point == m_cueDisc.trackCount + 1) // A0 - Report first track number
         {
-            subqdata->ctrladdr = m_cueDisc.tracks[1].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
-            subqdata->tno = 0x00;
-            subqdata->point = 0xA0;
-            subqdata->pmin = 0x01;
-            subqdata->psec = m_hasData ? 0x20 : 0x00; // 0 = audio, 20 = CDROM-XA
-            subqdata->pframe = 0x00;
+            subqdata.ctrladdr = m_cueDisc.tracks[1].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
+            subqdata.tno = 0x00;
+            subqdata.point = 0xA0;
+            subqdata.pmin = 0x01;
+            subqdata.psec = m_hasData ? 0x20 : 0x00; // 0 = audio, 20 = CDROM-XA
+            subqdata.pframe = 0x00;
         }
         else if (point == m_cueDisc.trackCount + 2) // A1 - Report last track number
         {
             // Thanks rama! )
-            subqdata->ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
-            subqdata->tno = 0x00;
-            subqdata->point = 0xA1;
-            subqdata->pmin = toBCD(m_cueDisc.trackCount);
-            subqdata->psec = 0x00;
-            subqdata->pframe = 0x00;
+            subqdata.ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
+            subqdata.tno = 0x00;
+            subqdata.point = 0xA1;
+            subqdata.pmin = toBCD(m_cueDisc.trackCount);
+            subqdata.psec = 0x00;
+            subqdata.pframe = 0x00;
         }
         else if (point == m_cueDisc.trackCount + 3) // A2 - Report lead-out track location
         {
             // <3
             const int sector_lead_out = m_cueDisc.tracks[m_cueDisc.trackCount + 1].indices[1] + c_preGap;
             const MSF msf_lead_out = sectorToMSF(sector_lead_out);
-            subqdata->ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
-            subqdata->tno = 0x00;
-            subqdata->point = 0xA2;
-            subqdata->pmin = toBCD(msf_lead_out.mm);
-            subqdata->psec = toBCD(msf_lead_out.ss);
-            subqdata->pframe = toBCD(msf_lead_out.ff);
+            subqdata.ctrladdr = m_cueDisc.tracks[m_cueDisc.trackCount].trackType == CueTrackType::TRACK_TYPE_DATA ? 0x41 : 0x01;
+            subqdata.tno = 0x00;
+            subqdata.point = 0xA2;
+            subqdata.pmin = toBCD(msf_lead_out.mm);
+            subqdata.psec = toBCD(msf_lead_out.ss);
+            subqdata.pframe = toBCD(msf_lead_out.ff);
         }
 
         const MSF msf_sector = sectorToMSF(sector);
-        subqdata->min = toBCD(msf_sector.mm);
-        subqdata->sec = toBCD(msf_sector.ss);
-        subqdata->frame = toBCD(msf_sector.ff);
-        subqdata->zero = 0x00;
-        subqdata->crc = 0x00;
+        subqdata.min = toBCD(msf_sector.mm);
+        subqdata.sec = toBCD(msf_sector.ss);
+        subqdata.frame = toBCD(msf_sector.ff);
+        subqdata.zero = 0x00;
+        subqdata.crc = 0x00;
     }
     else // Program area + lead-out
     {
@@ -165,36 +167,38 @@ void picostation::DiscImage::generateSubQ(SubQ *subqdata, int sector)
         const MSF msf_abs = sectorToMSF(sector_abs);
         m_currentLogicalTrack = logical_track;
 
-        subqdata->ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
+        subqdata.ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
 
         if (logical_track == m_cueDisc.trackCount + 1)
         {
-            subqdata->tno = 0xAA; // Lead-out track
+            subqdata.tno = 0xAA; // Lead-out track
         }
         else
         {
-            subqdata->tno = toBCD(logical_track); // Track numbers
+            subqdata.tno = toBCD(logical_track); // Track numbers
         }
         if (sector_track < 0)
         {                                          // 2 sec pause track
-            subqdata->x = 0x00;                    // Pause encoding
-            subqdata->min = 0x00;                  // min
-            subqdata->sec = toBCD(msf_track.ss);   // sec (count down)
-            subqdata->frame = toBCD(msf_track.ff); // frame (count down)
+            subqdata.x = 0x00;                    // Pause encoding
+            subqdata.min = 0x00;                  // min
+            subqdata.sec = toBCD(msf_track.ss);   // sec (count down)
+            subqdata.frame = toBCD(msf_track.ff); // frame (count down)
         }
         else
         {
-            subqdata->x = 0x01;
-            subqdata->min = toBCD(msf_track.mm);
-            subqdata->sec = toBCD(msf_track.ss);
-            subqdata->frame = toBCD(msf_track.ff);
+            subqdata.x = 0x01;
+            subqdata.min = toBCD(msf_track.mm);
+            subqdata.sec = toBCD(msf_track.ss);
+            subqdata.frame = toBCD(msf_track.ff);
         }
-        subqdata->zero = 0x00;
-        subqdata->amin = toBCD(msf_abs.mm);
-        subqdata->asec = toBCD(msf_abs.ss);
-        subqdata->aframe = toBCD(msf_abs.ff);
-        subqdata->crc = ((sector % 2) == 0) ? 0x00 : 0x80;
+        subqdata.zero = 0x00;
+        subqdata.amin = toBCD(msf_abs.mm);
+        subqdata.asec = toBCD(msf_abs.ss);
+        subqdata.aframe = toBCD(msf_abs.ff);
+        subqdata.crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
+    
+    return subqdata;
 }
 
 struct Context
