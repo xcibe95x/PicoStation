@@ -108,6 +108,7 @@ void initialize()
     mutex_init(&g_mechaconMutex);
 
     gpio_init(Pin::SCEX_DATA);
+    gpio_init(Pin::SCOR);
     gpio_init(Pin::SENS);
     gpio_init(Pin::LMTSW);
     gpio_init(Pin::XLAT);
@@ -123,6 +124,7 @@ void initialize()
 
     gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
     gpio_put(Pin::SCEX_DATA, 1);
+    gpio_set_dir(Pin::SCOR, GPIO_OUT);
     gpio_set_dir(Pin::SENS, GPIO_OUT);
     gpio_set_dir(Pin::LMTSW, GPIO_OUT);
     gpio_set_dir(Pin::XLAT, GPIO_IN);
@@ -175,19 +177,17 @@ void initialize()
     gpio_set_input_hysteresis_enabled(Pin::XLAT, true);
     gpio_set_input_hysteresis_enabled(Pin::CMD_CK, true);
 
-    uint i2s_pio_offset = pio_add_program(pio0, &i2s_data_program);
-    g_subqOffset = pio_add_program(pio0, &subq_program);
-    i2s_data_program_init(pio0, SM::I2SDATA, i2s_pio_offset, Pin::DA15, Pin::DA16);
+    uint i2s_pio_offset = pio_add_program(PIOInstance::I2S_DATA, &i2s_data_program);
+    g_subqOffset = pio_add_program(PIOInstance::SUBQ, &subq_program);
+    i2s_data_program_init(PIOInstance::I2S_DATA, SM::I2S_DATA, i2s_pio_offset, Pin::DA15, Pin::DA16);
 
-    uint scor_offset = pio_add_program(pio1, &scor_program);
-    s_mechachonOffset = pio_add_program(pio1, &mechacon_program);
-    g_soctOffset = pio_add_program(pio1, &soct_program);
-    scor_program_init(pio1, SM::SCOR, scor_offset, Pin::SCOR);
-    mechacon_program_init(pio1, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
+    s_mechachonOffset = pio_add_program(PIOInstance::MECHACON, &mechacon_program);
+    g_soctOffset = pio_add_program(PIOInstance::SOCT, &soct_program);
+    mechacon_program_init(PIOInstance::MECHACON, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
 
     uint64_t start_time = time_us_64();
 
-    pio_sm_set_enabled(pio0, SM::I2SDATA, true);
+    pio_sm_set_enabled(PIOInstance::I2S_DATA, SM::I2S_DATA, true);
     pwm_set_mask_enabled((1 << s_lrckSliceNum) | (1 << s_da15SliceNum) | (1 << s_clockSliceNum));
 
     gpio_set_dir(Pin::RESET, GPIO_OUT);
@@ -214,7 +214,7 @@ void initialize()
     DEBUG_PRINT("ON!\n");
     multicore_launch_core1(i2sDataThread);
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
-    pio_enable_sm_mask_in_sync(pio1, (1u << SM::SCOR) | (1u << SM::MECHACON));
+    pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
 }
 
 void updatePlaybackSpeed()
@@ -238,17 +238,15 @@ void maybeReset()
     if (gpio_get(Pin::RESET) == 0)
     {
         DEBUG_PRINT("RESET!\n");
-        pio_sm_set_enabled(pio0, SM::SUBQ, false);
-        pio_sm_set_enabled(pio1, SM::SOCT, false);
-        pio_sm_set_enabled(pio1, SM::MECHACON, false);
-        pio_enable_sm_mask_in_sync(pio1, (1u << SM::SCOR) | (1u << SM::MECHACON));
+        pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, false);
+        pio_sm_set_enabled(PIOInstance::SOCT, SM::SOCT, false);
+        pio_sm_restart(PIOInstance::MECHACON, SM::MECHACON);
 
-        mechacon_program_init(pio1, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
+        mechacon_program_init(PIOInstance::MECHACON, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
         g_subqDelay = false;
         g_soctEnabled = false;
 
-        gpio_init(Pin::SQSO);
-        gpio_set_dir(Pin::SQSO, GPIO_OUT);
+        gpio_put(Pin::SCOR, 0);
         gpio_put(Pin::SQSO, 0);
 
         uint64_t start_time = time_us_64();
@@ -269,7 +267,7 @@ void maybeReset()
             }
         }
 
-        pio_sm_set_enabled(pio1, SM::MECHACON, true);
+        pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
     }
 }
 
@@ -284,9 +282,9 @@ void __time_critical_func(setSens)(uint what, bool new_value)
 
 void __time_critical_func(updateMechSens)()
 {
-    while (!pio_sm_is_rx_fifo_empty(pio1, SM::MECHACON))
+    while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON))
     {
-        uint c = pio_sm_get_blocking(pio1, SM::MECHACON) >> 24;
+        uint c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
         g_latched >>= 8;
         g_latched |= c << 16;
         g_currentSens = c >> 4;
@@ -339,7 +337,7 @@ int __time_critical_func(main)()
             // waiting for RX FIFO entry does not work.
             sleep_us(300);
             g_soctEnabled = false;
-            pio_sm_set_enabled(pio1, SM::SOCT, false);
+            pio_sm_set_enabled(PIOInstance::SOCT, SM::SOCT, false);
             restore_interrupts(interrupts);
         }
         else if (g_sledMoveDirection != SledMove::STOP)
@@ -368,6 +366,12 @@ int __time_critical_func(main)()
                 {
                     g_subqDelay = false;
                     subq.start_subq(g_sector);
+
+                    gpio_put(Pin::SCOR, 1);
+                    add_alarm_in_us(135U, [](alarm_id_t id, void *user_data) -> int64_t
+                                    {
+                                    gpio_put(Pin::SCOR, 0);
+                                        return 0; }, NULL, false);
                 }
             }
             else if (g_sectorSending == g_sector)

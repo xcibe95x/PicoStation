@@ -183,10 +183,10 @@ inline void modeSpec() // $8X
     if (soct)
     {
         g_soctEnabled = true;
-        pio_sm_set_enabled(pio0, SM::SUBQ, false);
-        soct_program_init(pio1, SM::SOCT, g_soctOffset, Pin::SQSO, Pin::SQCK);
-        pio_sm_set_enabled(pio1, SM::SOCT, true);
-        pio_sm_put_blocking(pio1, SM::SOCT, 0xFFFFFFF);
+        pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, false);
+        soct_program_init(PIOInstance::SOCT, SM::SOCT, g_soctOffset, Pin::SQSO, Pin::SQCK);
+        pio_sm_set_enabled(PIOInstance::SOCT, SM::SOCT, true);
+        pio_sm_put_blocking(PIOInstance::SOCT, SM::SOCT, 0xFFFFFFF);
     }
 }
 

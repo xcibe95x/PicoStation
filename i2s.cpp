@@ -112,13 +112,14 @@ void __time_critical_func(i2sDataThread)()
     mountSDCard();
 
     // Init DMA
+    const uint i2s_dreq = PIOInstance::I2S_DATA == pio0 ? DREQ_PIO0_TX0 : DREQ_PIO1_TX0;
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    channel_config_set_dreq(&c, DREQ_PIO0_TX0);
-    dma_channel_configure(channel, &c, &pio0->txf[SM::I2SDATA], pio_samples[0], c_cdSamples * 2, false);
+    channel_config_set_dreq(&c, i2s_dreq);
+    dma_channel_configure(channel, &c, &PIOInstance::I2S_DATA->txf[SM::I2S_DATA], pio_samples[0], c_cdSamples * 2, false);
 
     g_coreReady[1] = true; // Core 1 is ready
 

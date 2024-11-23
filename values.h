@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hardware/pio.h"
 #include "pico/stdlib.h"
 
 // GPIO pinouts
@@ -52,16 +53,23 @@ namespace SledMove
     };
 }
 
+namespace PIOInstance
+{
+    PIO const I2S_DATA = pio0;
+    PIO const MECHACON = pio1;
+    PIO const SOCT = pio1;
+    PIO const SUBQ = pio0;
+}
+
 namespace SM
 {
     // PIO0
-    constexpr uint I2SDATA = 0;
+    constexpr uint I2S_DATA = 0;
     constexpr uint SUBQ = 1;
 
     // PIO1
-    constexpr uint SCOR = 0;
-    constexpr uint MECHACON = 1;
-    constexpr uint SOCT = 2;
+    constexpr uint MECHACON = 0;
+    constexpr uint SOCT = 1;
 }
 
 constexpr int NUM_IMAGES = 1;

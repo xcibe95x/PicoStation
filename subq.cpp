@@ -32,8 +32,8 @@ void picostation::SubQ::printf_subq(uint8_t *data)
 void picostation::SubQ::start_subq(int sector)
 {
     const SubQ::Data tracksubq = m_discImage->generateSubQ(sector);
-    subq_program_init(pio0, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
-    pio_sm_set_enabled(pio0, SM::SUBQ, true);
+    subq_program_init(PIOInstance::SUBQ, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
+    pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, true);
 
     uint sub1 = (tracksubq.raw[3] << 24) |
                 (tracksubq.raw[2] << 16) |
@@ -50,11 +50,9 @@ void picostation::SubQ::start_subq(int sector)
                 (tracksubq.raw[9] << 8) |
                 (tracksubq.raw[8]);
 
-    pio_sm_put_blocking(pio0, SM::SUBQ, sub1);
-    pio_sm_put_blocking(pio0, SM::SUBQ, sub2);
-    pio_sm_put_blocking(pio0, SM::SUBQ, sub3);
-
-    pio_sm_put_blocking(pio1, SM::SCOR, 1);
+    pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub1);
+    pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub2);
+    pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub3);
 
 #if DEBUG_SUBQ
     if (sector % 50 == 0)
