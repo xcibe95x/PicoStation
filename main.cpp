@@ -21,6 +21,7 @@
 #include "i2s.h"
 #include "logging.h"
 #include "main.pio.h"
+#include "picostation.h"
 #include "subq.h"
 #include "utils.h"
 #include "values.h"
@@ -83,8 +84,6 @@ volatile bool g_sensData[16] = {
     0, // $EX - OV64
     0  // $FX - 0
 };
-
-picostation::DiscImage g_discImage;
 
 void initialize();
 void updatePlaybackSpeed();
@@ -212,7 +211,7 @@ void initialize()
     }
 
     DEBUG_PRINT("ON!\n");
-    multicore_launch_core1(i2sDataThread);
+    multicore_launch_core1(picostation::core1Entry);
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
 }
@@ -297,7 +296,7 @@ int __time_critical_func(main)()
     static constexpr uint c_MaxTrackMoveTime = 15;   // uS
     static constexpr uint c_MaxSubqDelayTime = 3333; // uS
 
-    picostation::SubQ subq(&g_discImage);
+    picostation::SubQ subq(&picostation::g_discImage);
     uint64_t subq_delay_time = 0;
 
     int sector_per_track = sectorsPerTrack(0);
@@ -368,10 +367,10 @@ int __time_critical_func(main)()
                     subq.start_subq(g_sector);
 
                     gpio_put(Pin::SCOR, 1);
-                    add_alarm_in_us(135U, [](alarm_id_t id, void *user_data) -> int64_t
+                    add_alarm_in_us(135, [](alarm_id_t id, void *user_data) -> int64_t
                                     {
                                     gpio_put(Pin::SCOR, 0);
-                                        return 0; }, NULL, false);
+                                        return 0; }, NULL, true);
                 }
             }
             else if (g_sectorSending == g_sector)

@@ -44,10 +44,10 @@ namespace picostation
         };
 
         SubQ(DiscImage *discImage) : m_discImage(discImage) {}
-        void start_subq(int sector);
+        void start_subq(const int sector);
 
     private:
-        void printf_subq(uint8_t *data);
+        void printf_subq(const uint8_t *data);
 
         DiscImage *m_discImage;
     };

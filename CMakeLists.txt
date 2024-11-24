@@ -14,6 +14,7 @@ target_sources(picostation PRIVATE
     hw_config.cpp
     i2s.cpp
     main.cpp
+    picostation.cpp
     subq.cpp
     utils.cpp
 

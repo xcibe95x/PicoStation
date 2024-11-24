@@ -45,14 +45,10 @@ extern volatile bool g_coreReady[2];
 
 static uint64_t s_psneeTimer;
 
-extern picostation::DiscImage g_discImage;
-
-void generateScramblingKey(uint16_t *cd_scrambling_key);
-void i2sDataThread();
 void psnee(int sector);
 void __time_critical_func(updateMechSens)();
 
-void generateScramblingKey(uint16_t *cd_scrambling_key)
+void picostation::I2S::generateScramblingKey(uint16_t *cd_scrambling_key)
 {
     int key = 1;
 
@@ -77,7 +73,7 @@ void generateScramblingKey(uint16_t *cd_scrambling_key)
     }
 }
 
-void mountSDCard()
+void picostation::I2S::mountSDCard()
 {
     sd_card_t *pSD = sd_get_by_num(0);
     FRESULT fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
@@ -87,21 +83,18 @@ void mountSDCard()
     }
 }
 
-void __time_critical_func(i2sDataThread)()
+void __time_critical_func(picostation::I2S::start)()
 {
     static constexpr int c_sectorCache = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
     uint32_t pio_samples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0, 0};
-    s_psneeTimer = time_us_64();
     uint64_t sector_change_timer = 0;
     int buffer_for_dma = 1;
     int buffer_for_sd_read = 0;
     int cached_sectors[c_sectorCache] = {-1};
-    int sector_loaded[2] = {-1};
+    int sector_loaded[2];
     int round_robin_cache_index = 0;
-    sd_card_t *pSD;
-    int bytes;
     uint16_t cd_samples[c_sectorCache][c_cdSamplesBytes / sizeof(uint16_t)] = {0};
     uint16_t cd_scrambling_key[1176] = {0};
     int current_sector = -1;
@@ -128,6 +121,8 @@ void __time_critical_func(i2sDataThread)()
         tight_loop_contents();
     }
 
+    s_psneeTimer = time_us_64();
+
     while (true)
     {
         // Update latching, output SENS
@@ -147,14 +142,14 @@ void __time_critical_func(i2sDataThread)()
             g_discImage.load(target_Cues[g_imageIndex]);
             loaded_image_index = g_imageIndex;
             // Reset cache and loaded sectors
-            memset(cached_sectors, -1, sizeof(cached_sectors));
             sector_loaded[0] = -1;
             sector_loaded[1] = -1;
             round_robin_cache_index = 0;
             buffer_for_dma = 1;
             buffer_for_sd_read = 0;
-            memset(pio_samples[0], 0, c_cdSamplesBytes * 2);
-            memset(pio_samples[1], 0, c_cdSamplesBytes * 2);
+            memset(cached_sectors, -1, sizeof(cached_sectors));
+            memset(cd_samples, 0, sizeof(cd_samples));
+            memset(pio_samples, 0, sizeof(pio_samples));
         }
 
         if (buffer_for_dma != buffer_for_sd_read)
@@ -250,7 +245,7 @@ void psnee(int sector)
     static int psnee_hysteresis = 0;
 
     if (sector > 0 && sector < PSNEE_SECTOR_LIMIT &&
-        g_sensData[SENS::GFS] && !g_soctEnabled && g_discImage.hasData() &&
+        g_sensData[SENS::GFS] && !g_soctEnabled && picostation::g_discImage.hasData() &&
         ((time_us_64() - s_psneeTimer) > 13333))
     {
         psnee_hysteresis++;

@@ -30,6 +30,8 @@ struct MSF
     int ff;
 };
 
+picostation::DiscImage picostation::g_discImage;
+
 static MSF sectorToMSF(int sector)
 {
     MSF msf;
@@ -70,10 +72,10 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath)
     }
 }
 
-picostation::SubQ::Data picostation::DiscImage::generateSubQ(int sector)
+picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector)
 {
     SubQ::Data subqdata;
-    
+
     int sector_track;
 
     if (sector < c_leadIn) // Lead-in area
@@ -143,11 +145,11 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(int sector)
     }
     else // Program area + lead-out
     {
-        int logical_track = m_cueDisc.trackCount + 1; // in case seek overshoots past end of disc
+        m_currentLogicalTrack = m_cueDisc.trackCount + 1; // in case seek overshoots past end of disc
 
         if (sector - c_leadIn < c_preGap)
         {
-            logical_track = 1;
+            m_currentLogicalTrack = 1;
         }
         else
         {
@@ -155,30 +157,29 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(int sector)
             { // + 2 for lead in & lead out
                 if (m_cueDisc.tracks[i + 1].indices[0] > sector - c_leadIn - c_preGap)
                 {
-                    logical_track = i;
+                    m_currentLogicalTrack = i;
                     break;
                 }
             }
         }
-        sector_track = sector - m_cueDisc.tracks[logical_track].indices[1] - c_leadIn - c_preGap;
+        sector_track = sector - m_cueDisc.tracks[m_currentLogicalTrack].indices[1] - c_leadIn - c_preGap;
         const MSF msf_track = sectorToMSF(sector_track);
 
         const int sector_abs = (sector - c_leadIn);
         const MSF msf_abs = sectorToMSF(sector_abs);
-        m_currentLogicalTrack = logical_track;
 
-        subqdata.ctrladdr = (m_cueDisc.tracks[logical_track].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
+        subqdata.ctrladdr = (m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA) ? 0x41 : 0x01;
 
-        if (logical_track == m_cueDisc.trackCount + 1)
+        if (m_currentLogicalTrack == m_cueDisc.trackCount + 1)
         {
             subqdata.tno = 0xAA; // Lead-out track
         }
         else
         {
-            subqdata.tno = toBCD(logical_track); // Track numbers
+            subqdata.tno = toBCD(m_currentLogicalTrack); // Track numbers
         }
         if (sector_track < 0)
-        {                                          // 2 sec pause track
+        {                                         // 2 sec pause track
             subqdata.x = 0x00;                    // Pause encoding
             subqdata.min = 0x00;                  // min
             subqdata.sec = toBCD(msf_track.ss);   // sec (count down)
@@ -197,7 +198,7 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(int sector)
         subqdata.aframe = toBCD(msf_abs.ff);
         subqdata.crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
-    
+
     return subqdata;
 }
 
@@ -280,7 +281,7 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue)
     return FR_OK;
 }
 
-void picostation::DiscImage::readData(void *buffer, int sector)
+void picostation::DiscImage::readData(void *buffer, const int sector)
 {
     FRESULT fr;
     UINT br = 0;

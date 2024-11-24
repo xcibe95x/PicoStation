@@ -20,17 +20,19 @@ namespace picostation
 
         FRESULT load(const TCHAR *targetCue);
 
-        CueDisc* getCueDisc() { return &m_cueDisc; };
-        SubQ::Data generateSubQ(int sector);
+        CueDisc *getCueDisc() { return &m_cueDisc; };
+        SubQ::Data generateSubQ(const int sector);
         int numLogicalTracks() { return m_cueDisc.trackCount; }
-        int logicalTrackToSector(int logicalTrack) { return m_cueDisc.tracks[logicalTrack].fileOffset; };
+        int logicalTrackToSector(const int logicalTrack) { return m_cueDisc.tracks[logicalTrack].fileOffset; };
         bool hasData() { return m_hasData; };
         bool isCurrentTrackData() { return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA; };
-        void readData(void *buffer, int sector);
+        void readData(void *buffer, const int sector);
 
     private:
         CueDisc m_cueDisc;
         bool m_hasData = false;
         int m_currentLogicalTrack = 0;
     };
+
+    extern DiscImage g_discImage;
 } // namespace picostation

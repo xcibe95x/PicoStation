@@ -20,7 +20,7 @@
 
 extern uint g_subqOffset;
 
-void picostation::SubQ::printf_subq(uint8_t *data)
+void picostation::SubQ::printf_subq(const uint8_t *data)
 {
     for (int i = 0; i < 12; i++)
     {
@@ -28,8 +28,7 @@ void picostation::SubQ::printf_subq(uint8_t *data)
     }
 }
 
-// To-do: Move PIO code out of here
-void picostation::SubQ::start_subq(int sector)
+void picostation::SubQ::start_subq(const int sector)
 {
     const SubQ::Data tracksubq = m_discImage->generateSubQ(sector);
     subq_program_init(PIOInstance::SUBQ, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);

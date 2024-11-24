@@ -42,13 +42,14 @@ loop:
 
 % c-sdk {
 
-static inline void soct_program_init(PIO pio, uint8_t sm, uint8_t offset, 
-    uint8_t sqso_pin, uint8_t sqck_pin) {
+static inline void soct_program_init(PIO pio, uint8_t sm, uint8_t offset,
+                                     uint8_t sqso_pin, uint8_t sqck_pin)
+{
     pio_gpio_init(pio, sqso_pin);
     pio_gpio_init(pio, sqck_pin);
     pio_sm_set_consecutive_pindirs(pio, sm, sqso_pin, 1, true);
     pio_sm_set_consecutive_pindirs(pio, sm, sqck_pin, 1, false);
-    
+
     pio_sm_config sm_config = soct_program_get_default_config(offset);
     sm_config_set_out_pins(&sm_config, sqso_pin, 1);
     sm_config_set_in_pins(&sm_config, sqck_pin);
@@ -78,18 +79,20 @@ hang:
 
 % c-sdk {
 
-static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset, 
-    uint8_t sqso_pin, uint8_t sqck_pin) {
+static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
+                                     uint8_t sqso_pin, uint8_t sqck_pin)
+{
     pio_gpio_init(pio, sqso_pin);
     pio_gpio_init(pio, sqck_pin);
     pio_sm_set_consecutive_pindirs(pio, sm, sqso_pin, 1, true);
     pio_sm_set_consecutive_pindirs(pio, sm, sqck_pin, 1, false);
-    
+
     pio_sm_config sm_config = subq_program_get_default_config(offset);
     sm_config_set_out_shift(&sm_config, true, false, 32);
     sm_config_set_out_pins(&sm_config, sqso_pin, 1);
     sm_config_set_set_pins(&sm_config, sqso_pin, 1);
     sm_config_set_in_pins(&sm_config, sqck_pin);
+
     pio_sm_init(pio, sm, offset, &sm_config);
 }
 
@@ -103,17 +106,20 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
 
     
 % c-sdk {
-static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t data_clock_pin, uint8_t data_pin) {
-    pio_gpio_init(pio, 16); // DA16
-    pio_sm_set_consecutive_pindirs(pio, sm, data_clock_pin, 1, false);   // DA15 bitclock input
-    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);  // DA16 output   
+static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset,
+                                         uint8_t da15, uint8_t da16)
+{
+    pio_gpio_init(pio, da16);
+    pio_sm_set_consecutive_pindirs(pio, sm, da15, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, da16, 1, true);
+
     pio_sm_config sm_config = i2s_data_program_get_default_config(offset);
-    sm_config_set_in_pins(&sm_config, 15);
-    sm_config_set_out_pins(&sm_config, 16, 1);
+    sm_config_set_in_pins(&sm_config, da15);
+    sm_config_set_out_pins(&sm_config, da16, 1);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
     sm_config_set_out_shift(&sm_config, false, true, 24);
-    hw_set_bits(&pio->input_sync_bypass, 1u << 15);
-    
+    hw_set_bits(&pio->input_sync_bypass, 1u << da15);
+
     pio_sm_init(pio, sm, offset, &sm_config);
 }
 
