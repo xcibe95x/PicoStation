@@ -45,12 +45,14 @@ extern volatile bool g_coreReady[2];
 
 static uint64_t s_psneeTimer;
 
-void psnee(int sector);
+void psnee(const int sector);
 void __time_critical_func(updateMechSens)();
 
-void picostation::I2S::generateScramblingKey(uint16_t *cd_scrambling_key)
+inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey)
 {
     int key = 1;
+
+    memset(cdScramblingKey, 0, 1176 * sizeof(uint16_t));
 
     for (int i = 6; i < 1176; i++)
     {
@@ -63,7 +65,7 @@ void picostation::I2S::generateScramblingKey(uint16_t *cd_scrambling_key)
 
         char lower = key & 0xFF;
 
-        cd_scrambling_key[i] = (lower << 8) | upper;
+        cdScramblingKey[i] = (lower << 8) | upper;
 
         for (int j = 0; j < 8; j++)
         {
@@ -83,39 +85,47 @@ void picostation::I2S::mountSDCard()
     }
 }
 
-void __time_critical_func(picostation::I2S::start)()
+inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transfer_count)
 {
-    static constexpr int c_sectorCache = 50;
-
-    // TODO: separate PSNEE, cue parse, and i2s functions
-    uint32_t pio_samples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0, 0};
-    uint64_t sector_change_timer = 0;
-    int buffer_for_dma = 1;
-    int buffer_for_sd_read = 0;
-    int cached_sectors[c_sectorCache] = {-1};
-    int sector_loaded[2];
-    int round_robin_cache_index = 0;
-    uint16_t cd_samples[c_sectorCache][c_cdSamplesBytes / sizeof(uint16_t)] = {0};
-    uint16_t cd_scrambling_key[1176] = {0};
-    int current_sector = -1;
-    int loaded_image_index = -1;
-
-    // Generate CD scrambling key
-    generateScramblingKey(cd_scrambling_key);
-    mountSDCard();
-
-    // Init DMA
-    const uint i2s_dreq = PIOInstance::I2S_DATA == pio0 ? DREQ_PIO0_TX0 : DREQ_PIO1_TX0;
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    channel_config_set_dreq(&c, i2s_dreq);
-    dma_channel_configure(channel, &c, &PIOInstance::I2S_DATA->txf[SM::I2S_DATA], pio_samples[0], c_cdSamples * 2, false);
+    const uint i2sDREQ = PIOInstance::I2S_DATA == pio0 ? DREQ_PIO0_TX0 : DREQ_PIO1_TX0;
+    channel_config_set_dreq(&c, i2sDREQ);
+    dma_channel_configure(channel, &c, &PIOInstance::I2S_DATA->txf[SM::I2S_DATA], read_addr, transfer_count, false);
+
+    return channel;
+}
+
+void __time_critical_func(picostation::I2S::start)()
+{
+    static constexpr int c_sectorCacheSize = 50;
+
+    // TODO: separate PSNEE, cue parse, and i2s functions
+    uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0};
+    int bufferForDMA = 1;
+    int bufferForSDRead = 0;
+    int loadedSector[2];
+
+    int cachedSectors[c_sectorCacheSize];
+    int roundRobinCacheIndex = 0;
+    uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)];
+
+    uint16_t cdScramblingKey[1176];
+
+    int currentSector = -1;
+
+    int loadedImageIndex = -1;
+
+    generateScramblingKey(cdScramblingKey);
+
+    mountSDCard();
+
+    int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
     g_coreReady[1] = true; // Core 1 is ready
-
     while (!g_coreReady[0]) // Wait for Core 0 to be ready
     {
         tight_loop_contents();
@@ -133,43 +143,44 @@ void __time_critical_func(picostation::I2S::start)()
         }
 
         // Sector could change during the loop, so we need to keep track of it
-        current_sector = g_sector;
+        currentSector = g_sector;
 
-        psnee(current_sector);
+        psnee(currentSector);
 
-        if (loaded_image_index != g_imageIndex)
+        if (loadedImageIndex != g_imageIndex)
         {
             g_discImage.load(target_Cues[g_imageIndex]);
-            loaded_image_index = g_imageIndex;
+            loadedImageIndex = g_imageIndex;
+
             // Reset cache and loaded sectors
-            sector_loaded[0] = -1;
-            sector_loaded[1] = -1;
-            round_robin_cache_index = 0;
-            buffer_for_dma = 1;
-            buffer_for_sd_read = 0;
-            memset(cached_sectors, -1, sizeof(cached_sectors));
-            memset(cd_samples, 0, sizeof(cd_samples));
-            memset(pio_samples, 0, sizeof(pio_samples));
+            loadedSector[0] = -1;
+            loadedSector[1] = -1;
+            roundRobinCacheIndex = 0;
+            bufferForDMA = 1;
+            bufferForSDRead = 0;
+            memset(cachedSectors, -1, sizeof(cachedSectors));
+            memset(cdSamples, 0, sizeof(cdSamples));
+            memset(pioSamples, 0, sizeof(pioSamples));
         }
 
-        if (buffer_for_dma != buffer_for_sd_read)
+        if (bufferForDMA != bufferForSDRead)
         {
-            sector_change_timer = time_us_64();
+            uint64_t sector_change_timer = time_us_64();
             while ((time_us_64() - sector_change_timer) < 100)
             {
-                if (current_sector != g_sector)
+                if (currentSector != g_sector)
                 {
-                    current_sector = g_sector;
+                    currentSector = g_sector;
                     sector_change_timer = time_us_64();
                 }
             }
 
             // Sector cache lookup/update
             int cache_hit = -1;
-            int sector_to_search = current_sector < c_leadIn + c_preGap ? c_leadIn + c_preGap : current_sector;
-            for (int i = 0; i < c_sectorCache; i++)
+            int sector_to_search = currentSector < c_leadIn + c_preGap ? c_leadIn + c_preGap : currentSector;
+            for (int i = 0; i < c_sectorCacheSize; i++)
             {
-                if (cached_sectors[i] == sector_to_search)
+                if (cachedSectors[i] == sector_to_search)
                 {
                     cache_hit = i;
                     break;
@@ -178,24 +189,24 @@ void __time_critical_func(picostation::I2S::start)()
 
             if (cache_hit == -1)
             {
-                g_discImage.readData(cd_samples[round_robin_cache_index], sector_to_search - c_leadIn - c_preGap);
+                g_discImage.readData(cdSamples[roundRobinCacheIndex], sector_to_search - c_leadIn - c_preGap);
 
-                cached_sectors[round_robin_cache_index] = sector_to_search;
-                cache_hit = round_robin_cache_index;
-                round_robin_cache_index = (round_robin_cache_index + 1) % c_sectorCache;
+                cachedSectors[roundRobinCacheIndex] = sector_to_search;
+                cache_hit = roundRobinCacheIndex;
+                roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
             }
 
             // Copy CD samples to PIO buffer
-            for (int i = 0; i < c_cdSamples * 2; i++)
+            for (int i = 0; i < c_cdSamplesSize * 2; i++)
             {
                 uint32_t i2s_data;
                 if (g_discImage.isCurrentTrackData())
                 {
-                    i2s_data = (cd_samples[cache_hit][i] ^ cd_scrambling_key[i]) << 8;
+                    i2s_data = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
                 }
                 else
                 {
-                    i2s_data = (cd_samples[cache_hit][i]) << 8;
+                    i2s_data = (cdSamples[cache_hit][i]) << 8;
                 }
 
                 if (i2s_data & 0x100)
@@ -203,19 +214,19 @@ void __time_critical_func(picostation::I2S::start)()
                     i2s_data |= 0xFF;
                 }
 
-                pio_samples[buffer_for_sd_read][i] = i2s_data;
+                pioSamples[bufferForSDRead][i] = i2s_data;
             }
 
-            sector_loaded[buffer_for_sd_read] = current_sector;
-            buffer_for_sd_read = (buffer_for_sd_read + 1) % 2;
+            loadedSector[bufferForSDRead] = currentSector;
+            bufferForSDRead = (bufferForSDRead + 1) % 2;
         }
 
-        if (!dma_channel_is_busy(channel))
+        if (!dma_channel_is_busy(dmaChannel))
         {
-            buffer_for_dma = (buffer_for_dma + 1) % 2;
-            g_sectorSending = sector_loaded[buffer_for_dma];
+            bufferForDMA = (bufferForDMA + 1) % 2;
+            g_sectorSending = loadedSector[bufferForDMA];
 
-            dma_hw->ch[channel].read_addr = (uint32_t)pio_samples[buffer_for_dma];
+            dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
             // Sync with the I2S clock
             while (gpio_get(Pin::LRCK) == 1)
@@ -227,12 +238,12 @@ void __time_critical_func(picostation::I2S::start)()
                 tight_loop_contents();
             }
 
-            dma_channel_start(channel);
+            dma_channel_start(dmaChannel);
         }
     }
 }
 
-void psnee(int sector)
+void psnee(const int sector)
 {
     static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
     static constexpr char SCEX_DATA[][44] = {

@@ -57,13 +57,37 @@ static uint s_mechachonOffset;
 uint g_soctOffset;
 uint g_subqOffset;
 
-// PWM Config
-static pwm_config s_cfgClock;
-static pwm_config s_cfgDA15;
-static pwm_config s_cfgLRCK;
-static uint s_clockSliceNum;
-static uint s_da15SliceNum;
-static uint s_lrckSliceNum;
+struct PWMSettings
+{
+    const uint gpio;
+    uint sliceNum;
+    pwm_config config;
+    const uint16_t wrap;
+    const uint clkdiv;
+    const bool invert;
+    const uint16_t level;
+};
+
+static PWMSettings pwmMainClock = {
+    .gpio = Pin::CLK,
+    .wrap = 1,
+    .clkdiv = 2,
+    .invert = false,
+    .level = 1};
+
+static PWMSettings pwmDataClock = {
+    .gpio = Pin::DA15,
+    .wrap = (1 * 32) - 1,
+    .clkdiv = 4,
+    .invert = true,
+    .level = (32 / 2)};
+
+static PWMSettings pwmLRClock = {
+    .gpio = Pin::LRCK,
+    .wrap = (48 * 32) - 1,
+    .clkdiv = 4,
+    .invert = false,
+    .level = (48 * (32 / 2))};
 
 volatile uint g_currentSens;
 volatile bool g_sensData[16] = {
@@ -91,6 +115,19 @@ void maybeReset();
 void setSens(uint what, bool new_value);
 void __time_critical_func(updateMechSens)();
 
+void initPWM(PWMSettings *settings)
+{
+    gpio_set_function(settings->gpio, GPIO_FUNC_PWM);
+    settings->sliceNum = pwm_gpio_to_slice_num(settings->gpio);
+    settings->config = pwm_get_default_config();
+    pwm_config_set_clkdiv_mode(&settings->config, PWM_DIV_FREE_RUNNING);
+    pwm_config_set_wrap(&settings->config, settings->wrap);
+    pwm_config_set_clkdiv(&settings->config, settings->clkdiv);
+    pwm_config_set_output_polarity(&settings->config, settings->invert, settings->invert);
+    pwm_init(settings->sliceNum, &settings->config, false);
+    pwm_set_both_levels(settings->sliceNum, settings->level, settings->level);
+}
+
 void initialize()
 {
 #if DEBUG_LOGGING_ENABLED
@@ -106,89 +143,52 @@ void initialize()
     srand(time(NULL));
     mutex_init(&g_mechaconMutex);
 
-    gpio_init(Pin::SCEX_DATA);
-    gpio_init(Pin::SCOR);
-    gpio_init(Pin::SENS);
-    gpio_init(Pin::LMTSW);
-    gpio_init(Pin::XLAT);
-    gpio_init(Pin::DOOR);
-    gpio_init(Pin::RESET);
-    gpio_init(Pin::SQCK);
-    gpio_init(Pin::SQSO);
-    gpio_init(Pin::CMD_CK);
+    for (const auto pin : Pin::AllPins)
+    {
+        gpio_init(pin);
+    }
 
-    gpio_init(Pin::LRCK);
-    gpio_init(Pin::DA15);
-    gpio_init(Pin::CLK);
-
+    gpio_set_dir(Pin::XLAT, GPIO_IN);
+    gpio_set_dir(Pin::SQCK, GPIO_IN);
+    gpio_set_dir(Pin::LMTSW, GPIO_OUT);
     gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
     gpio_put(Pin::SCEX_DATA, 1);
-    gpio_set_dir(Pin::SCOR, GPIO_OUT);
-    gpio_set_dir(Pin::SENS, GPIO_OUT);
-    gpio_set_dir(Pin::LMTSW, GPIO_OUT);
-    gpio_set_dir(Pin::XLAT, GPIO_IN);
     gpio_set_dir(Pin::DOOR, GPIO_IN);
     gpio_set_dir(Pin::RESET, GPIO_IN);
-    gpio_set_dir(Pin::SQCK, GPIO_IN);
-    gpio_set_dir(Pin::SQSO, GPIO_OUT);
-    gpio_set_dir(Pin::CMD_CK, GPIO_IN);
-
-    gpio_set_dir(Pin::LRCK, GPIO_OUT);
+    gpio_set_dir(Pin::SENS, GPIO_OUT);
     gpio_set_dir(Pin::DA15, GPIO_OUT);
-    gpio_set_dir(Pin::CLK, GPIO_OUT);
-
-    // Main clock
-    gpio_set_function(Pin::CLK, GPIO_FUNC_PWM);
-    s_clockSliceNum = pwm_gpio_to_slice_num(Pin::CLK);
-    s_cfgClock = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&s_cfgClock, PWM_DIV_FREE_RUNNING);
-    pwm_config_set_wrap(&s_cfgClock, 1);
-    pwm_config_set_clkdiv_int(&s_cfgClock, 2);
-    pwm_init(s_clockSliceNum, &s_cfgClock, false);
-    pwm_set_both_levels(s_clockSliceNum, 1, 1);
-
-    // Data clock
-    gpio_set_function(Pin::DA15, GPIO_FUNC_PWM);
-    s_da15SliceNum = pwm_gpio_to_slice_num(Pin::DA15);
-    s_cfgDA15 = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&s_cfgDA15, PWM_DIV_FREE_RUNNING);
-    pwm_config_set_wrap(&s_cfgDA15, (1 * 32) - 1);
-    pwm_config_set_clkdiv_int(&s_cfgDA15, 4);
-    pwm_config_set_output_polarity(&s_cfgDA15, true, true);
-    pwm_init(s_da15SliceNum, &s_cfgDA15, false);
-    pwm_set_both_levels(s_da15SliceNum, 16, 16);
-
-    // Left/right clock
-    gpio_set_function(Pin::LRCK, GPIO_FUNC_PWM);
-    s_lrckSliceNum = pwm_gpio_to_slice_num(Pin::LRCK);
-    s_cfgLRCK = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&s_cfgLRCK, PWM_DIV_FREE_RUNNING);
-    pwm_config_set_wrap(&s_cfgLRCK, (48 * 32) - 1);
-    pwm_config_set_clkdiv_int(&s_cfgLRCK, 4);
-    pwm_init(s_lrckSliceNum, &s_cfgLRCK, false);
-    pwm_set_both_levels(s_lrckSliceNum, (48 * 16), (48 * 16));
-
-    gpio_put(Pin::SQSO, 0);
+    gpio_set_dir(Pin::DA16, GPIO_OUT);
+    gpio_set_dir(Pin::LRCK, GPIO_OUT);
+    gpio_set_dir(Pin::SCOR, GPIO_OUT);
     gpio_put(Pin::SCOR, 0);
+    gpio_set_dir(Pin::SQSO, GPIO_OUT);
+    gpio_put(Pin::SQSO, 0);
+    gpio_set_dir(Pin::CLK, GPIO_OUT);
+    gpio_set_dir(Pin::CMD_CK, GPIO_IN);
+    gpio_set_dir(Pin::CMD_DATA, GPIO_IN);
 
-    gpio_set_input_hysteresis_enabled(Pin::RESET, true);
-    gpio_set_input_hysteresis_enabled(Pin::SQCK, true);
     gpio_set_input_hysteresis_enabled(Pin::XLAT, true);
+    gpio_set_input_hysteresis_enabled(Pin::SQCK, true);
+    gpio_set_input_hysteresis_enabled(Pin::RESET, true);
     gpio_set_input_hysteresis_enabled(Pin::CMD_CK, true);
 
-    uint i2s_pio_offset = pio_add_program(PIOInstance::I2S_DATA, &i2s_data_program);
-    g_subqOffset = pio_add_program(PIOInstance::SUBQ, &subq_program);
-    i2s_data_program_init(PIOInstance::I2S_DATA, SM::I2S_DATA, i2s_pio_offset, Pin::DA15, Pin::DA16);
+    initPWM(&pwmMainClock);
+    initPWM(&pwmDataClock);
+    initPWM(&pwmLRClock);
 
+    uint i2s_pio_offset = pio_add_program(PIOInstance::I2S_DATA, &i2s_data_program);
+    i2s_data_program_init(PIOInstance::I2S_DATA, SM::I2S_DATA, i2s_pio_offset, Pin::DA15, Pin::DA16);
+    
     s_mechachonOffset = pio_add_program(PIOInstance::MECHACON, &mechacon_program);
-    g_soctOffset = pio_add_program(PIOInstance::SOCT, &soct_program);
     mechacon_program_init(PIOInstance::MECHACON, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
 
-    uint64_t start_time = time_us_64();
+    g_soctOffset = pio_add_program(PIOInstance::SOCT, &soct_program);
+    g_subqOffset = pio_add_program(PIOInstance::SUBQ, &subq_program);
 
     pio_sm_set_enabled(PIOInstance::I2S_DATA, SM::I2S_DATA, true);
-    pwm_set_mask_enabled((1 << s_lrckSliceNum) | (1 << s_da15SliceNum) | (1 << s_clockSliceNum));
+    pwm_set_mask_enabled((1 << pwmLRClock.sliceNum) | (1 << pwmDataClock.sliceNum) | (1 << pwmMainClock.sliceNum));
 
+    uint64_t start_time = time_us_64();
     gpio_set_dir(Pin::RESET, GPIO_OUT);
     gpio_put(Pin::RESET, 0);
     sleep_ms(300);
@@ -210,10 +210,9 @@ void initialize()
         }
     }
 
-    DEBUG_PRINT("ON!\n");
-    multicore_launch_core1(picostation::core1Entry);
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
+    DEBUG_PRINT("ON!\n");
 }
 
 void updatePlaybackSpeed()
@@ -223,11 +222,11 @@ void updatePlaybackSpeed()
         s_currentPlaybackSpeed = g_targetPlaybackSpeed;
         const uint clock_div = (s_currentPlaybackSpeed == 1) ? 4 : 2;
         pwm_set_mask_enabled(0);
-        pwm_config_set_clkdiv_int(&s_cfgDA15, clock_div);
-        pwm_config_set_clkdiv_int(&s_cfgLRCK, clock_div);
-        pwm_hw->slice[s_da15SliceNum].div = s_cfgDA15.div;
-        pwm_hw->slice[s_lrckSliceNum].div = s_cfgLRCK.div;
-        pwm_set_mask_enabled((1 << s_lrckSliceNum) | (1 << s_da15SliceNum) | (1 << s_clockSliceNum));
+        pwm_config_set_clkdiv_int(&pwmDataClock.config, clock_div);
+        pwm_config_set_clkdiv_int(&pwmLRClock.config, clock_div);
+        pwm_hw->slice[pwmDataClock.sliceNum].div = pwmDataClock.config.div;
+        pwm_hw->slice[pwmLRClock.sliceNum].div = pwmLRClock.config.div;
+        pwm_set_mask_enabled((1 << pwmLRClock.sliceNum) | (1 << pwmDataClock.sliceNum) | (1 << pwmMainClock.sliceNum));
         DEBUG_PRINT("x%i\n", s_currentPlaybackSpeed);
     }
 }
@@ -291,25 +290,20 @@ void __time_critical_func(updateMechSens)()
     }
 }
 
-int __time_critical_func(main)()
+[[noreturn]] void __time_critical_func(core0Entry)()
 {
     static constexpr uint c_MaxTrackMoveTime = 15;   // uS
     static constexpr uint c_MaxSubqDelayTime = 3333; // uS
 
     picostation::SubQ subq(&picostation::g_discImage);
-    uint64_t subq_delay_time = 0;
+    uint64_t subqDelayTime = 0;
 
     int sector_per_track = sectorsPerTrack(0);
 
-    set_sys_clock_khz(271200, true);
-    sleep_ms(5);
-
-    initialize();
     g_coreReady[0] = true;
-
     while (!g_coreReady[1])
     {
-        sleep_ms(1);
+        tight_loop_contents();
     }
 
     while (true)
@@ -343,7 +337,7 @@ int __time_critical_func(main)()
         {
             if ((time_us_64() - g_sledTimer) > c_MaxTrackMoveTime)
             {
-                g_track = clamp(g_track + g_sledMoveDirection, 0, c_trackMax); // +1 or -1
+                g_track = clamp(g_track + g_sledMoveDirection, c_trackMin, c_trackMax); // +1 or -1
                 g_sector = trackToSector(g_track);
                 g_sectorForTrackUpdate = g_sector;
 
@@ -361,7 +355,7 @@ int __time_critical_func(main)()
         {
             if (g_subqDelay)
             {
-                if ((time_us_64() - subq_delay_time) > c_MaxSubqDelayTime)
+                if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime)
                 {
                     g_subqDelay = false;
                     subq.start_subq(g_sector);
@@ -375,16 +369,29 @@ int __time_critical_func(main)()
             }
             else if (g_sectorSending == g_sector)
             {
-                g_sector = clamp(g_sector + 1, 0, c_sectorMax);
+                g_sector = clamp(g_sector + 1, c_sectorMin, c_sectorMax);
                 if ((g_sector - g_sectorForTrackUpdate) >= sector_per_track) // Moved to next track?
                 {
                     g_sectorForTrackUpdate = g_sector;
-                    g_track = clamp(g_track + 1, 0, c_trackMax);
+                    g_track = clamp(g_track + 1, c_trackMin, c_trackMax);
                     sector_per_track = sectorsPerTrack(g_track);
                 }
                 g_subqDelay = true;
-                subq_delay_time = time_us_64();
+                subqDelayTime = time_us_64();
             }
         }
     }
+}
+
+int main()
+{
+    set_sys_clock_khz(271200, true);
+    sleep_ms(5);
+
+    multicore_launch_core1(picostation::core1Entry);
+
+    initialize();
+
+    core0Entry();
+    __builtin_unreachable();
 }

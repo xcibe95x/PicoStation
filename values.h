@@ -24,6 +24,7 @@ namespace Pin
         CMD_DATA = 26,
         CMD_CK = 27
     };
+    constexpr uint AllPins[] = {XLAT, SQCK, LMTSW, SCEX_DATA, DOOR, RESET, SENS, DA15, DA16, LRCK, SCOR, SQSO, CLK, CMD_DATA, CMD_CK};
 };
 // C2PO, WFCK is always GND
 
@@ -74,8 +75,10 @@ constexpr int NUM_IMAGES = 1;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
 
-constexpr uint c_trackMax = 20892;  // 73:59:58
+constexpr int c_trackMin = 0;
+constexpr int c_trackMax = 20892;  // 73:59:58
+constexpr int c_sectorMin = 0;
 constexpr int c_sectorMax = 333000; // 74:00:00
 
-constexpr size_t c_cdSamples = 588;
-constexpr size_t c_cdSamplesBytes = c_cdSamples * 2 * 2; // 2352
+constexpr size_t c_cdSamplesSize = 588;
+constexpr size_t c_cdSamplesBytes = c_cdSamplesSize * 2 * 2; // 2352

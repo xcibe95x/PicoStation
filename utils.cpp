@@ -3,7 +3,7 @@
 extern inline int trackToSector(int track);
 extern inline int sectorsPerTrack(int track);
 
-int clamp(int value, int min, int max)
+int clamp(const int value, const int min, const int max)
 {
     if (value < 0)
     {

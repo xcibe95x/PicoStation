@@ -14,8 +14,9 @@ namespace picostation
         void start();
 
     private:
-        void generateScramblingKey(uint16_t *cd_scrambling_key);
-        void initDMA();
+        void generateScramblingKey(uint16_t *cdScramblingKey);
+        int initDMA(const volatile void *read_addr, uint transfer_count); // Returns DMA channel number
         void mountSDCard();
+        void reset();
     };
 } // namespace picostation

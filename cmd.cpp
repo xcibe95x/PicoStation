@@ -142,7 +142,7 @@ inline void autoSequence() // $4X
                                            {
             const int track = *(int *)user_data;
             s_autoSeqAlarmID = 0;
-            g_track = clamp(track, 0, c_trackMax);
+            g_track = clamp(track, c_trackMin, c_trackMax);
             g_sector = trackToSector(g_track);
             g_sectorForTrackUpdate = g_sector;
             setSens(SENS::XBUSY, 0);
@@ -196,12 +196,12 @@ inline void trackingMode() // $2X
     switch (subcommand_tracking) // Tracking servo
     {
     case 8: // Forward track jump
-        g_track = clamp(g_track + 1, 0, c_trackMax);
+        g_track = clamp(g_track + 1, c_trackMin, c_trackMax);
         g_sector = trackToSector(g_track);
         g_sectorForTrackUpdate = g_sector;
         break;
     case 0xC: // Reverse track jump
-        g_track = clamp(g_track - 1, 0, c_trackMax);
+        g_track = clamp(g_track - 1, c_trackMin, c_trackMax);
         g_sector = trackToSector(g_track);
         g_sectorForTrackUpdate = g_sector;
         break;

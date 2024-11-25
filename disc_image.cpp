@@ -32,7 +32,7 @@ struct MSF
 
 picostation::DiscImage picostation::g_discImage;
 
-static MSF sectorToMSF(int sector)
+static MSF sectorToMSF(const int sector)
 {
     MSF msf;
     msf.mm = abs(sector / 75 / 60);
@@ -41,7 +41,7 @@ static MSF sectorToMSF(int sector)
     return msf;
 }
 
-static inline int toBCD(int in)
+static inline int toBCD(const int in)
 {
     if (in > 99)
     {
@@ -84,7 +84,7 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector)
 
         if (point <= m_cueDisc.trackCount) // TOC Entries
         {
-            int logical_track = point;
+            const int logical_track = point;
             if (logical_track == 1)
             {
                 // Track 1 has a hardcoded 2 second pre-gap
