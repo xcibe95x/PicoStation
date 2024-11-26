@@ -1,21 +1,20 @@
 #include "i2s.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-
-#include "hardware/dma.h"
-#include "hardware/pio.h"
-#include "pico/stdlib.h"
-#include "main.pio.h"
 
 #include "cmd.h"
 #include "disc_image.h"
 #include "f_util.h"
 #include "ff.h"
+#include "hardware/dma.h"
+#include "hardware/pio.h"
 #include "hw_config.h"
 #include "logging.h"
+#include "main.pio.h"
+#include "pico/stdlib.h"
 #include "rtc.h"
 #include "subq.h"
 #include "utils.h"
@@ -30,6 +29,9 @@
 // To-do:
 // This was a placeholder for multi-cue support
 // but need a console side menu to select the cue file still
+/*const TCHAR target_Cues[NUM_IMAGES][11] = {
+    "UNIROM.cue",
+};*/
 const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
@@ -48,17 +50,14 @@ static uint64_t s_psneeTimer;
 void psnee(const int sector);
 void __time_critical_func(updateMechSens)();
 
-inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey)
-{
+inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
 
     memset(cdScramblingKey, 0, 1176 * sizeof(uint16_t));
 
-    for (int i = 6; i < 1176; i++)
-    {
+    for (int i = 6; i < 1176; i++) {
         char upper = key & 0xFF;
-        for (int j = 0; j < 8; j++)
-        {
+        for (int j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
             key = (bit | key) >> 1;
         }
@@ -67,26 +66,22 @@ inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey)
 
         cdScramblingKey[i] = (lower << 8) | upper;
 
-        for (int j = 0; j < 8; j++)
-        {
+        for (int j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
             key = (bit | key) >> 1;
         }
     }
 }
 
-void picostation::I2S::mountSDCard()
-{
+void picostation::I2S::mountSDCard() {
     sd_card_t *pSD = sd_get_by_num(0);
     FRESULT fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
-    if (FR_OK != fr)
-    {
+    if (FR_OK != fr) {
         panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
     }
 }
 
-inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transfer_count)
-{
+inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transfer_count) {
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
@@ -99,8 +94,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     return channel;
 }
 
-void __time_critical_func(picostation::I2S::start)()
-{
+[[noreturn]] void __time_critical_func(picostation::I2S::start)() {
     static constexpr int c_sectorCacheSize = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
@@ -125,19 +119,17 @@ void __time_critical_func(picostation::I2S::start)()
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
-    g_coreReady[1] = true; // Core 1 is ready
-    while (!g_coreReady[0]) // Wait for Core 0 to be ready
+    g_coreReady[1] = true;   // Core 1 is ready
+    while (!g_coreReady[0])  // Wait for Core 0 to be ready
     {
         tight_loop_contents();
     }
 
     s_psneeTimer = time_us_64();
 
-    while (true)
-    {
+    while (true) {
         // Update latching, output SENS
-        if (mutex_try_enter(&g_mechaconMutex, 0))
-        {
+        if (mutex_try_enter(&g_mechaconMutex, 0)) {
             updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
@@ -147,8 +139,7 @@ void __time_critical_func(picostation::I2S::start)()
 
         psnee(currentSector);
 
-        if (loadedImageIndex != g_imageIndex)
-        {
+        if (loadedImageIndex != g_imageIndex) {
             g_discImage.load(target_Cues[g_imageIndex]);
             loadedImageIndex = g_imageIndex;
 
@@ -163,13 +154,10 @@ void __time_critical_func(picostation::I2S::start)()
             memset(pioSamples, 0, sizeof(pioSamples));
         }
 
-        if (bufferForDMA != bufferForSDRead)
-        {
+        if (bufferForDMA != bufferForSDRead) {
             uint64_t sector_change_timer = time_us_64();
-            while ((time_us_64() - sector_change_timer) < 100)
-            {
-                if (currentSector != g_sector)
-                {
+            while ((time_us_64() - sector_change_timer) < 100) {
+                if (currentSector != g_sector) {
                     currentSector = g_sector;
                     sector_change_timer = time_us_64();
                 }
@@ -178,17 +166,14 @@ void __time_critical_func(picostation::I2S::start)()
             // Sector cache lookup/update
             int cache_hit = -1;
             int sector_to_search = currentSector < c_leadIn + c_preGap ? c_leadIn + c_preGap : currentSector;
-            for (int i = 0; i < c_sectorCacheSize; i++)
-            {
-                if (cachedSectors[i] == sector_to_search)
-                {
+            for (int i = 0; i < c_sectorCacheSize; i++) {
+                if (cachedSectors[i] == sector_to_search) {
                     cache_hit = i;
                     break;
                 }
             }
 
-            if (cache_hit == -1)
-            {
+            if (cache_hit == -1) {
                 g_discImage.readData(cdSamples[roundRobinCacheIndex], sector_to_search - c_leadIn - c_preGap);
 
                 cachedSectors[roundRobinCacheIndex] = sector_to_search;
@@ -197,20 +182,15 @@ void __time_critical_func(picostation::I2S::start)()
             }
 
             // Copy CD samples to PIO buffer
-            for (int i = 0; i < c_cdSamplesSize * 2; i++)
-            {
+            for (int i = 0; i < c_cdSamplesSize * 2; i++) {
                 uint32_t i2s_data;
-                if (g_discImage.isCurrentTrackData())
-                {
+                if (g_discImage.isCurrentTrackData()) {
                     i2s_data = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
-                }
-                else
-                {
+                } else {
                     i2s_data = (cdSamples[cache_hit][i]) << 8;
                 }
 
-                if (i2s_data & 0x100)
-                {
+                if (i2s_data & 0x100) {
                     i2s_data |= 0xFF;
                 }
 
@@ -221,81 +201,70 @@ void __time_critical_func(picostation::I2S::start)()
             bufferForSDRead = (bufferForSDRead + 1) % 2;
         }
 
-        if (!dma_channel_is_busy(dmaChannel))
-        {
+        if (!dma_channel_is_busy(dmaChannel)) {
             bufferForDMA = (bufferForDMA + 1) % 2;
             g_sectorSending = loadedSector[bufferForDMA];
 
             dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
             // Sync with the I2S clock
-            while (gpio_get(Pin::LRCK) == 1)
-            {
+            while (gpio_get(Pin::LRCK) == 1) {
                 tight_loop_contents();
             }
-            while (gpio_get(Pin::LRCK) == 0)
-            {
+            while (gpio_get(Pin::LRCK) == 0) {
                 tight_loop_contents();
             }
 
             dma_channel_start(dmaChannel);
         }
     }
+    __builtin_unreachable();
 }
 
-void psnee(const int sector)
-{
+void psnee(const int sector) {
     static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
     static constexpr char SCEX_DATA[][44] = {
         // To-do: Change psnee to UART(250 baud)
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
+         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
+         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
+        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
+         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
     };
 
     static int psnee_hysteresis = 0;
 
-    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT &&
-        g_sensData[SENS::GFS] && !g_soctEnabled && picostation::g_discImage.hasData() &&
-        ((time_us_64() - s_psneeTimer) > 13333))
-    {
+    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && g_sensData[SENS::GFS] && !g_soctEnabled &&
+        picostation::g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
         psnee_hysteresis++;
         s_psneeTimer = time_us_64();
     }
 
-    if (psnee_hysteresis > 100)
-    {
+    if (psnee_hysteresis > 100) {
         psnee_hysteresis = 0;
         DEBUG_PRINT("+SCEX\n");
         gpio_put(Pin::SCEX_DATA, 0);
         s_psneeTimer = time_us_64();
-        while ((time_us_64() - s_psneeTimer) < 90000)
-        {
-            if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled)
-            {
+        while ((time_us_64() - s_psneeTimer) < 90000) {
+            if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
                 goto abort_psnee;
             }
         }
-        for (int i = 0; i < 6; i++)
-        {
-            for (int j = 0; j < 44; j++)
-            {
+        for (int i = 0; i < 6; i++) {
+            for (int j = 0; j < 44; j++) {
                 gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
                 s_psneeTimer = time_us_64();
-                while ((time_us_64() - s_psneeTimer) < 4000)
-                {
-                    if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled)
-                    {
+                while ((time_us_64() - s_psneeTimer) < 4000) {
+                    if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
                         goto abort_psnee;
                     }
                 }
             }
             gpio_put(Pin::SCEX_DATA, 0);
             s_psneeTimer = time_us_64();
-            while ((time_us_64() - s_psneeTimer) < 90000)
-            {
-                if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled)
-                {
+            while ((time_us_64() - s_psneeTimer) < 90000) {
+                if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
                     goto abort_psnee;
                 }
             }

@@ -1,14 +1,13 @@
 #include "subq.h"
 
-#include <stdio.h>
 #include <stdint.h>
-
-#include "hardware/pio.h"
-#include "pico/stdlib.h"
+#include <stdio.h>
 
 #include "disc_image.h"
+#include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
+#include "pico/stdlib.h"
 #include "utils.h"
 #include "values.h"
 
@@ -20,42 +19,29 @@
 
 extern uint g_subqOffset;
 
-void picostation::SubQ::printf_subq(const uint8_t *data)
-{
-    for (int i = 0; i < 12; i++)
-    {
+void picostation::SubQ::printf_subq(const uint8_t *data) {
+    for (int i = 0; i < 12; i++) {
         DEBUG_PRINT("%02X ", data[i]);
     }
 }
 
-void picostation::SubQ::start_subq(const int sector)
-{
+void picostation::SubQ::start_subq(const int sector) {
     const SubQ::Data tracksubq = m_discImage->generateSubQ(sector);
     subq_program_init(PIOInstance::SUBQ, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
     pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, true);
 
-    uint sub1 = (tracksubq.raw[3] << 24) |
-                (tracksubq.raw[2] << 16) |
-                (tracksubq.raw[1] << 8) |
-                (tracksubq.raw[0]);
+    uint sub1 = (tracksubq.raw[3] << 24) | (tracksubq.raw[2] << 16) | (tracksubq.raw[1] << 8) | (tracksubq.raw[0]);
 
-    uint sub2 = (tracksubq.raw[7] << 24) |
-                (tracksubq.raw[6] << 16) |
-                (tracksubq.raw[5] << 8) |
-                (tracksubq.raw[4]);
+    uint sub2 = (tracksubq.raw[7] << 24) | (tracksubq.raw[6] << 16) | (tracksubq.raw[5] << 8) | (tracksubq.raw[4]);
 
-    uint sub3 = (tracksubq.raw[11] << 24) |
-                (tracksubq.raw[10] << 16) |
-                (tracksubq.raw[9] << 8) |
-                (tracksubq.raw[8]);
+    uint sub3 = (tracksubq.raw[11] << 24) | (tracksubq.raw[10] << 16) | (tracksubq.raw[9] << 8) | (tracksubq.raw[8]);
 
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub1);
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub2);
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub3);
 
 #if DEBUG_SUBQ
-    if (sector % 50 == 0)
-    {
+    if (sector % 50 == 0) {
         printf_subq(tracksubq.raw);
         DEBUG_PRINT("%d\n", sector);
     }

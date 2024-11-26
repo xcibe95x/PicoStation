@@ -9,14 +9,14 @@ pico_sdk_init()
 add_executable(picostation)
 
 target_sources(picostation PRIVATE
-    cmd.cpp
-    disc_image.cpp
-    hw_config.cpp
-    i2s.cpp
-    main.cpp
-    picostation.cpp
-    subq.cpp
-    utils.cpp
+    src/cmd.cpp
+    src/disc_image.cpp
+    src/hw_config.cpp
+    src/i2s.cpp
+    src/main.cpp
+    src/picostation.cpp
+    src/subq.cpp
+    src/utils.cpp
 
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
@@ -32,7 +32,7 @@ add_subdirectory(third_party/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
 
 pico_enable_stdio_usb(picostation 1)
 
-pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/main.pio)
+pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 
 target_link_libraries(picostation PRIVATE FatFs_SPI hardware_dma hardware_pio hardware_pwm hardware_vreg pico_multicore pico_stdlib)
 
