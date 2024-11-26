@@ -29,13 +29,9 @@
 // To-do:
 // This was a placeholder for multi-cue support
 // but need a console side menu to select the cue file still
-/*const TCHAR target_Cues[NUM_IMAGES][11] = {
-    "UNIROM.cue",
-};*/
 const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
-
 volatile int g_imageIndex = 0;
 
 extern volatile int g_sector;
@@ -165,18 +161,18 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
 
             // Sector cache lookup/update
             int cache_hit = -1;
-            int sector_to_search = currentSector < c_leadIn + c_preGap ? c_leadIn + c_preGap : currentSector;
+            // Need to take a different path if sector is in the lead-in/pregap
             for (int i = 0; i < c_sectorCacheSize; i++) {
-                if (cachedSectors[i] == sector_to_search) {
+                if (cachedSectors[i] == currentSector) {
                     cache_hit = i;
                     break;
                 }
             }
 
             if (cache_hit == -1) {
-                g_discImage.readData(cdSamples[roundRobinCacheIndex], sector_to_search - c_leadIn - c_preGap);
+                g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
 
-                cachedSectors[roundRobinCacheIndex] = sector_to_search;
+                cachedSectors[roundRobinCacheIndex] = currentSector;
                 cache_hit = roundRobinCacheIndex;
                 roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
             }
