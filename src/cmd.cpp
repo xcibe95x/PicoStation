@@ -16,7 +16,6 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern uint g_latched;
 extern uint g_countTrack;
 extern int g_track;
 extern int g_originalTrack;
@@ -70,6 +69,11 @@ static int s_autoSeqTrack = 0;
 static int s_jumpTrack = 0;
 static alarm_id_t s_autoSeqAlarmID = 0;
 
+// Indirectly accessed from both cores by updateMechSens, leave volatile
+static volatile uint s_currentSens;
+static volatile uint s_latched = 0;  // Command latch
+// Indirectly accessed from both cores by updateMechSens, leave volatile
+
 static void autoSequence();
 static void funcSpec();
 static void modeSpec();
@@ -80,22 +84,22 @@ static void spindleControl();
 
 static inline void picostation::mechcommand::autoSequence()  // $4X
 {
-    const uint sub_command = (g_latched & 0x0F0000) >> 16;
-    const bool reverse_jump = sub_command & 0x1;
-    // const uint timer_range = (g_latched & 0x8) >> 3;
-    // const uint cancel_timer = (g_latched & 0xF) >> 4;
+    const uint subCommand = (s_latched & 0x0F0000) >> 16;
+    const bool reverseJump = subCommand & 0x1;
+    // const uint timer_range = (s_latched & 0x8) >> 3;
+    // const uint cancel_timer = (s_latched & 0xF) >> 4;
 
     int tracks_to_move = 0;
 
-    g_sensData[SENS::XBUSY] = (sub_command != 0);
+    g_sensData[SENS::XBUSY] = (subCommand != 0);
 
-    if (sub_command == 0x7)  // Focus-On
+    if (subCommand == 0x7)  // Focus-On
     {
         DEBUG_PRINT("Focus-On\n");
         return;
     }
 
-    switch (sub_command & 0xe) {
+    switch (subCommand & 0xe) {
         case 0x0:  // Cancel
             DEBUG_PRINT("Cancel\n");
             return;
@@ -126,11 +130,11 @@ static inline void picostation::mechcommand::autoSequence()  // $4X
             break;
 
         default:
-            DEBUG_PRINT("Unsupported command: %x\n", sub_command);
+            DEBUG_PRINT("Unsupported command: %x\n", subCommand);
             break;
     }
 
-    if (reverse_jump) {
+    if (reverseJump) {
         s_autoSeqTrack = g_track - tracks_to_move;
     } else {
         s_autoSeqTrack = g_track + tracks_to_move;
@@ -154,13 +158,13 @@ static inline void picostation::mechcommand::autoSequence()  // $4X
 
 static inline void picostation::mechcommand::funcSpec()  // $9X
 {
-    // const bool flfc = g_latched & (1 << 13);
-    // const bool biligl_sub = g_latched & (1 << 14);
-    // const bool biligl_main = g_latched & (1 << 15);
-    // const bool dpll = g_latched & (1 << 16);
-    // const bool aseq = g_latched & (1 << 17);
-    const bool dspb = g_latched & (1 << 18);
-    // const bool dclv = g_latched & (1 << 19);
+    // const bool flfc = s_latched & (1 << 13);
+    // const bool biligl_sub = s_latched & (1 << 14);
+    // const bool biligl_main = s_latched & (1 << 15);
+    // const bool dpll = s_latched & (1 << 16);
+    // const bool aseq = s_latched & (1 << 17);
+    const bool dspb = s_latched & (1 << 18);
+    // const bool dclv = s_latched & (1 << 19);
 
     if (!dspb)  // DSPB = 0 Normal-speed playback, DSPB = 1 Double-speed playback
     {
@@ -172,13 +176,13 @@ static inline void picostation::mechcommand::funcSpec()  // $9X
 
 static inline void picostation::mechcommand::modeSpec()  // $8X
 {
-    const bool soct = g_latched & (1 << 13);
-    // const bool ashs = g_latched & (1 << 14);
-    // const bool vco_sel = g_latched & (1 << 15);
-    // const bool wsel = g_latched & (1 << 16);
-    // const bool dout_mutef = g_latched & (1 << 17);
-    // const bool dout_mute = g_latched & (1 << 18);
-    // const bool cdrom = g_latched & (1 << 19);
+    const bool soct = s_latched & (1 << 13);
+    // const bool ashs = s_latched & (1 << 14);
+    // const bool vco_sel = s_latched & (1 << 15);
+    // const bool wsel = s_latched & (1 << 16);
+    // const bool dout_mutef = s_latched & (1 << 17);
+    // const bool dout_mute = s_latched & (1 << 18);
+    // const bool cdrom = s_latched & (1 << 19);
 
     if (soct) {
         g_soctEnabled = true;
@@ -191,7 +195,7 @@ static inline void picostation::mechcommand::modeSpec()  // $8X
 
 static inline void picostation::mechcommand::trackingMode()  // $2X
 {
-    const uint subcommand_tracking = (g_latched & 0x0C0000) >> 16;
+    const uint subcommand_tracking = (s_latched & 0x0C0000) >> 16;
     switch (subcommand_tracking)  // Tracking servo
     {
         case 8:  // Forward track jump
@@ -206,7 +210,7 @@ static inline void picostation::mechcommand::trackingMode()  // $2X
             break;
     }
 
-    const uint subcommand_sled = (g_latched & 0x030000) >> 16;
+    const uint subcommand_sled = (s_latched & 0x030000) >> 16;
     switch (subcommand_sled)  // Sled servo
     {
         case 2:  // Forward sled move
@@ -232,14 +236,14 @@ static inline void picostation::mechcommand::trackingMode()  // $2X
 }
 
 static inline void picostation::mechcommand::spindleControl() {
-    const uint sub_command = (g_latched & 0x0F0000) >> 16;
+    const uint subCommand = (s_latched & 0x0F0000) >> 16;
 
-    g_sensData[SENS::GFS] = (sub_command == SpindleCommands::CLVA);
+    g_sensData[SENS::GFS] = (subCommand == SpindleCommands::CLVA);
     if (!g_sensData[SENS::GFS]) {
         g_subqDelay = false;
     }
 
-    /*switch (sub_command)
+    /*switch (subCommand)
     {
     case SpindleCommands::STOP: // 0
         DEBUG_PRINT("Stop spindleControl\n");
@@ -272,8 +276,8 @@ static inline void picostation::mechcommand::spindleControl() {
 }
 
 void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, uint32_t events) {
-    const uint command = (g_latched & 0xF00000) >> 20;
-    const uint latched = g_latched & 0xFFFFF;
+    const uint command = (s_latched & 0xF00000) >> 20;
+    const uint latched = s_latched & 0xFFFFF;
 
     switch (command) {
         case commands::TRACKING_MODE:  // $2X commands - Tracking and sled servo control
@@ -285,7 +289,7 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
             break;
 
         case commands::JUMP_COUNT:  // $7X commands - Auto sequence track jump count setting
-            s_jumpTrack = (g_latched & 0xFFFF0) >> 4;
+            s_jumpTrack = (s_latched & 0xFFFF0) >> 4;
             DEBUG_PRINT("jump: %d\n", s_jumpTrack);
             break;
 
@@ -297,11 +301,11 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
             break;
 
             /*case 0xA: // $AX commands - Audio CTRL
-                // printf("Audio CTRL %x\n", g_latched);
+                // DEBUG_PRINT("Audio CTRL %x\n", g_latched);
                 break;*/
 
         case commands::MONITOR_COUNT:  // $BX commands - This command sets the traverse monitor count.
-            g_countTrack = (g_latched & 0xFFFF0) >> 4;
+            g_countTrack = (s_latched & 0xFFFF0) >> 4;
             DEBUG_PRINT("count: %d\n", g_countTrack);
             break;
         case commands::SPINDLE:  // $EX commands - Spindle motor control
@@ -317,7 +321,7 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
                 break;
 
             case commands::CUSTOM: // picostation
-                switch ((g_latched & 0x0F0000) >> 16)
+                switch ((s_latched & 0x0F0000) >> 16)
                 {
                 case 0x0: // Iamge 0
                     DEBUG_PRINT("Image 0 command!\n");
@@ -337,5 +341,22 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
                 break;*/
     }
 
-    g_latched = 0;
+    s_latched = 0;
+}
+
+void __time_critical_func(picostation::mechcommand::setSens)(uint what, bool new_value) {
+    g_sensData[what] = new_value;
+    if (what == s_currentSens) {
+        gpio_put(Pin::SENS, new_value);
+    }
+}
+
+void __time_critical_func(picostation::mechcommand::updateMechSens)() {
+    while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON)) {
+        uint c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
+        s_latched >>= 8;
+        s_latched |= c << 16;
+        s_currentSens = c >> 4;
+        gpio_put(Pin::SENS, g_sensData[c >> 4]);
+    }
 }

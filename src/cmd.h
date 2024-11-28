@@ -4,6 +4,8 @@
 
 namespace picostation {
 namespace mechcommand {
-void __time_critical_func(interrupt_xlat)(uint gpio, uint32_t events);
+void interrupt_xlat(uint gpio, uint32_t events);
+void setSens(uint what, bool new_value);
+void updateMechSens();
 }  // namespace mechcommand
 }  // namespace picostation

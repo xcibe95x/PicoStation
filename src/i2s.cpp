@@ -44,7 +44,6 @@ extern volatile bool g_coreReady[2];
 static uint64_t s_psneeTimer;
 
 void psnee(const int sector);
-void __time_critical_func(updateMechSens)();
 
 inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
@@ -126,7 +125,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     while (true) {
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            updateMechSens();
+            picostation::mechcommand::updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
 

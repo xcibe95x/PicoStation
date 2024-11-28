@@ -32,7 +32,6 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-uint g_latched = 0;                   // Mechacon command latch
 volatile bool g_soctEnabled = false;  // Serial Read Out Circuit
 uint g_countTrack = 0;
 int g_track = 0;
@@ -75,7 +74,6 @@ static PWMSettings pwmDataClock = {
 static PWMSettings pwmLRClock = {
     .gpio = Pin::LRCK, .wrap = (48 * 32) - 1, .clkdiv = 4, .invert = false, .level = (48 * (32 / 2))};
 
-volatile uint g_currentSens;
 volatile bool g_sensData[16] = {
     0,  // $0X - FZC
     0,  // $1X - AS
@@ -240,23 +238,6 @@ void maybeReset() {
     }
 }
 
-void __time_critical_func(setSens)(uint what, bool new_value) {
-    g_sensData[what] = new_value;
-    if (what == g_currentSens) {
-        gpio_put(Pin::SENS, new_value);
-    }
-}
-
-void __time_critical_func(updateMechSens)() {
-    while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON)) {
-        uint c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
-        g_latched >>= 8;
-        g_latched |= c << 16;
-        g_currentSens = c >> 4;
-        gpio_put(Pin::SENS, g_sensData[c >> 4]);
-    }
-}
-
 [[noreturn]] void __time_critical_func(core0Entry)() {
     static constexpr uint c_MaxTrackMoveTime = 15;    // uS
     static constexpr uint c_MaxSubqDelayTime = 3333;  // uS
@@ -277,7 +258,7 @@ void __time_critical_func(updateMechSens)() {
 
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            updateMechSens();
+            picostation::mechcommand::updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
 
@@ -303,7 +284,7 @@ void __time_critical_func(updateMechSens)() {
                 const int tracks_moved = g_track - g_originalTrack;
                 if (abs(tracks_moved) >= g_countTrack) {
                     g_originalTrack = g_track;
-                    setSens(SENS::COUT, !g_sensData[SENS::COUT]);
+                    picostation::mechcommand::setSens(SENS::COUT, !g_sensData[SENS::COUT]);
                 }
 
                 g_sledTimer = time_us_64();
