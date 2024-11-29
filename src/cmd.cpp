@@ -7,6 +7,7 @@
 #include "logging.h"
 #include "main.pio.h"
 #include "pico/stdlib.h"
+#include "picostation.h"
 #include "utils.h"
 #include "values.h"
 
@@ -15,25 +16,6 @@
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
-
-extern uint g_countTrack;
-extern int g_track;
-extern int g_originalTrack;
-
-extern int g_sledMoveDirection;
-extern uint64_t g_sledTimer;
-
-extern volatile int g_sector;
-extern int g_sectorForTrackUpdate;
-
-extern int g_targetPlaybackSpeed;
-
-extern volatile bool g_sensData[16];
-extern volatile bool g_subqDelay;
-
-extern volatile bool g_soctEnabled;
-extern uint g_soctOffset;
-extern volatile uint g_imageIndex;
 
 void setSens(uint what, bool new_value);
 
@@ -73,6 +55,25 @@ static alarm_id_t s_autoSeqAlarmID = 0;
 static volatile uint s_currentSens;
 static volatile uint s_latched = 0;  // Command latch
 // Indirectly accessed from both cores by updateMechSens, leave volatile
+
+volatile bool g_sensData[16] = {
+    0,  // $0X - FZC
+    0,  // $1X - AS
+    0,  // $2X - TZC
+    0,  // $3X - Misc.
+    0,  // $4X - XBUSY
+    1,  // $5X - FOK
+    0,  // $6X - 0
+    0,  // $7X - 0
+    0,  // $8X - 0
+    0,  // $9X - 0
+    1,  // $AX - GFS
+    0,  // $BX - COMP
+    0,  // $CX - COUT
+    0,  // $DX - 0
+    0,  // $EX - OV64
+    0   // $FX - 0
+};
 
 static void autoSequence();
 static void funcSpec();

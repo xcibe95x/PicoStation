@@ -15,6 +15,7 @@
 #include "logging.h"
 #include "main.pio.h"
 #include "pico/stdlib.h"
+#include "picostation.h"
 #include "rtc.h"
 #include "subq.h"
 #include "utils.h"
@@ -26,24 +27,12 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-// To-do:
-// This was a placeholder for multi-cue support
-// but need a console side menu to select the cue file still
 const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
 volatile int g_imageIndex = 0;
 
-extern volatile int g_sector;
-extern volatile int g_sectorSending;
-extern volatile bool g_sensData[16];
-extern volatile bool g_soctEnabled;
-extern mutex_t g_mechaconMutex;
-extern volatile bool g_coreReady[2];
-
 static uint64_t s_psneeTimer;
-
-void psnee(const int sector);
 
 inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
@@ -125,7 +114,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     while (true) {
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            picostation::mechcommand::updateMechSens();
+            mechcommand::updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
 
@@ -216,10 +205,9 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     __builtin_unreachable();
 }
 
-void psnee(const int sector) {
+void picostation::I2S::psnee(const int sector) {
     static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
     static constexpr char SCEX_DATA[][44] = {
-        // To-do: Change psnee to UART(250 baud)
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
          1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
@@ -230,8 +218,8 @@ void psnee(const int sector) {
 
     static int psnee_hysteresis = 0;
 
-    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && g_sensData[SENS::GFS] && !g_soctEnabled &&
-        picostation::g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
+    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechcommand::g_sensData[SENS::GFS] && !g_soctEnabled &&
+        g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
         psnee_hysteresis++;
         s_psneeTimer = time_us_64();
     }

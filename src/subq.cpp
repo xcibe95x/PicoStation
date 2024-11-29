@@ -8,6 +8,7 @@
 #include "logging.h"
 #include "main.pio.h"
 #include "pico/stdlib.h"
+#include "picostation.h"
 #include "utils.h"
 #include "values.h"
 
@@ -16,8 +17,6 @@
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
-
-extern uint g_subqOffset;
 
 void picostation::SubQ::printf_subq(const uint8_t *data) {
     for (int i = 0; i < 12; i++) {

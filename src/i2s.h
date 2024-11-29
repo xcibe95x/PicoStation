@@ -15,6 +15,7 @@ class I2S {
     void generateScramblingKey(uint16_t *cdScramblingKey);
     int initDMA(const volatile void *read_addr, uint transfer_count);  // Returns DMA channel number
     void mountSDCard();
+    void psnee(const int sector);
     void reset();
 };
 }  // namespace picostation
