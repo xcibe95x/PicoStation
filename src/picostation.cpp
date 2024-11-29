@@ -1,12 +1,14 @@
 #include "picostation.h"
 
-#include <ctime>
+#include <time.h>
+#include <stdio.h>
 
 #include "cmd.h"
 #include "disc_image.h"
 #include "hardware/pwm.h"
 #include "hardware/vreg.h"
 #include "i2s.h"
+#include "logging.h"
 #include "main.pio.h"
 #include "pico/multicore.h"
 #include "subq.h"
