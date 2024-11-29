@@ -1,0 +1,3 @@
+[submodule "third_party/RP2040_Pseudo_Atomic"]
+	path = third_party/RP2040_Pseudo_Atomic
+	url = https://github.com/TSprech/RP2040_Pseudo_Atomic.git

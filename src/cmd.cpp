@@ -355,8 +355,8 @@ void __time_critical_func(picostation::mechcommand::setSens)(uint what, bool new
 void __time_critical_func(picostation::mechcommand::updateMechSens)() {
     while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON)) {
         uint c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
-        s_latched >>= 8;
-        s_latched |= c << 16;
+        s_latched = s_latched >> 8;
+        s_latched = s_latched | (c << 16);
         s_currentSens = c >> 4;
         gpio_put(Pin::SENS, g_sensData[c >> 4]);
     }

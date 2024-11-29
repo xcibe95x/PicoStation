@@ -160,7 +160,11 @@ void picostation::initHW() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(100);
 
-    srand(time(NULL));
+    // srand(time(NULL)); // Causes an insane size increase of the binary for some reason?
+    // To-do: Investigate this later...
+    srand(4);  // chosen by fair dice roll.
+               // guaranteed to be random.
+
     mutex_init(&g_mechaconMutex);
 
     for (const auto pin : Pin::allPins) {

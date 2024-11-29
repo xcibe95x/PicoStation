@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.24.1)
+set(CMAKE_CXX_STANDARD 20)
 
 include(pico_sdk_import.cmake)
 
@@ -26,11 +27,13 @@ target_sources(picostation PRIVATE
 
 target_include_directories(picostation PRIVATE
     third_party
+    .
 )
 
 add_subdirectory(third_party/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
+add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
-pico_enable_stdio_usb(picostation 1)
+pico_enable_stdio_usb(picostation 0)
 
 pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 
