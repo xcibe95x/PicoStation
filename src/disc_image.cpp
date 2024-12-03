@@ -10,6 +10,7 @@
 #include "ff.h"
 #include "logging.h"
 #include "pico/stdlib.h"
+#include "picostation.h"
 #include "subq.h"
 #include "utils.h"
 #include "values.h"
@@ -123,7 +124,6 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
         subqdata.sec = toBCD(msf_sector.ss);
         subqdata.frame = toBCD(msf_sector.ff);
         subqdata.zero = 0x00;
-        subqdata.crc = 0x00;
     } else  // Program area + lead-out
     {
         m_currentLogicalTrack = m_cueDisc.trackCount + 1;  // in case seek overshoots past end of disc
@@ -167,8 +167,22 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
         subqdata.amin = toBCD(msf_abs.mm);
         subqdata.asec = toBCD(msf_abs.ss);
         subqdata.aframe = toBCD(msf_abs.ff);
-        subqdata.crc = ((sector % 2) == 0) ? 0x00 : 0x80;
     }
+
+    // switch (g_audioCtrlMode) {
+    //     case audioControlModes::NORMAL:
+    //     case audioControlModes::ALTNORMAL:
+    //         subqdata.crc = 0x1234;
+    //         break;
+
+    //     case audioControlModes::LEVELMETER:
+    //         subqdata.crc = g_audioLevel;
+    //         break;
+
+    //     case audioControlModes::PEAKMETER:
+    //         subqdata.crc = g_audioPeak;
+    //         break;
+    // }
 
     return subqdata;
 }

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include "cmd.h"
 #include "disc_image.h"
 #include "f_util.h"
@@ -30,7 +32,7 @@
 const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
-volatile int g_imageIndex = 0;
+const int g_imageIndex = 0;  // To-do: Implement a console side menu to select the cue file
 
 static uint64_t s_psneeTimer;
 
@@ -93,8 +95,8 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
 
     uint16_t cdScramblingKey[1176];
 
-    int currentSector = -1;
-
+    auto currentSector = -1;
+    g_sectorSending = -1;
     int loadedImageIndex = -1;
 
     generateScramblingKey(cdScramblingKey);
@@ -119,7 +121,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
         }
 
         // Sector could change during the loop, so we need to keep track of it
-        currentSector = g_sector;
+        currentSector = g_sector.Load();
 
         psnee(currentSector);
 
@@ -141,8 +143,8 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
         if (bufferForDMA != bufferForSDRead) {
             uint64_t sector_change_timer = time_us_64();
             while ((time_us_64() - sector_change_timer) < 100) {
-                if (currentSector != g_sector) {
-                    currentSector = g_sector;
+                if (currentSector != g_sector.Load()) {
+                    currentSector = g_sector.Load();
                     sector_change_timer = time_us_64();
                 }
             }
@@ -165,13 +167,18 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
                 roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
             }
 
+            const int16_t *data = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
+            const unsigned abs_lev_chselect = (currentSector % 2);
             // Copy CD samples to PIO buffer
             for (int i = 0; i < c_cdSamplesSize * 2; i++) {
                 uint32_t i2s_data;
+
                 if (g_discImage.isCurrentTrackData()) {
                     i2s_data = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
                 } else {
                     i2s_data = (cdSamples[cache_hit][i]) << 8;
+                    // g_audioPeak = blah;
+                    // g_audioLevel = blah;
                 }
 
                 if (i2s_data & 0x100) {
@@ -218,7 +225,7 @@ void picostation::I2S::psnee(const int sector) {
 
     static int psnee_hysteresis = 0;
 
-    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechcommand::g_sensData[SENS::GFS] && !g_soctEnabled &&
+    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechcommand::getSens(SENS::GFS) && !g_soctEnabled.Load() &&
         g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
         psnee_hysteresis++;
         s_psneeTimer = time_us_64();
@@ -230,7 +237,7 @@ void picostation::I2S::psnee(const int sector) {
         gpio_put(Pin::SCEX_DATA, 0);
         s_psneeTimer = time_us_64();
         while ((time_us_64() - s_psneeTimer) < 90000) {
-            if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
+            if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
                 goto abort_psnee;
             }
         }
@@ -239,7 +246,7 @@ void picostation::I2S::psnee(const int sector) {
                 gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
                 s_psneeTimer = time_us_64();
                 while ((time_us_64() - s_psneeTimer) < 4000) {
-                    if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
+                    if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
                         goto abort_psnee;
                     }
                 }
@@ -247,7 +254,7 @@ void picostation::I2S::psnee(const int sector) {
             gpio_put(Pin::SCEX_DATA, 0);
             s_psneeTimer = time_us_64();
             while ((time_us_64() - s_psneeTimer) < 90000) {
-                if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled) {
+                if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
                     goto abort_psnee;
                 }
             }

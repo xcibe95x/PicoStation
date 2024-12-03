@@ -1,7 +1,7 @@
 #include "picostation.h"
 
-#include <time.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "cmd.h"
 #include "disc_image.h"
@@ -12,6 +12,7 @@
 #include "main.pio.h"
 #include "pico/multicore.h"
 #include "subq.h"
+#include "third_party/RP2040_Pseudo_Atomic/Inc/RP2040Atomic.hpp"
 #include "utils.h"
 #include "values.h"
 
@@ -23,22 +24,23 @@
 
 // To-do: Establish thread safety: identify variables that are shared between cores, wrap them in mutexes or spin locks,
 // maybe in a class?
-// To-do: Implement a console side menu to select the cue file
-// To-do: Implement UART(250 baud) for psnee
 // To-do: Implement lid switch behavior
+// To-do: Implement a console side menu to select the cue file
+// To-do: Implement level meter mode to command $AX - AudioCTRL
+// To-do: Implement UART(250 baud) for psnee
 // To-do: Fix seeks that go into the lead-in + track 1 pregap areas, possibly sending bad data over I2S
 
-volatile bool picostation::g_soctEnabled = false;  // core0: r/w, core1: r
-uint picostation::g_countTrack = 0;                // core0: r/w, move to class?
-int picostation::g_track = 0;                      // core0: r/w, move to class?
-int picostation::g_originalTrack = 0;              // core0: r/w, move to class?
+patom::types::patomic_bool picostation::g_soctEnabled;  // core0: r/w, core1: r
+uint picostation::g_countTrack = 0;                     // core0: r/w, move to class?
+int picostation::g_track = 0;                           // core0: r/w, move to class?
+int picostation::g_originalTrack = 0;                   // core0: r/w, move to class?
 
 int picostation::g_sledMoveDirection = SledMove::STOP;  // core0: r/w, move to class?
 uint64_t picostation::g_sledTimer = 0;                  // core0: r/w, move to class?
 
-volatile int picostation::g_sector = 0;          // core0: r/w, core1: r
-int picostation::g_sectorForTrackUpdate = 0;     // core0: r/w, move to class?
-volatile int picostation::g_sectorSending = -1;  // core0: r, core1: w
+patom::types::patomic_int picostation::g_sector;         // core0: r/w, core1: r
+int picostation::g_sectorForTrackUpdate = 0;             // core0: r/w, move to class?
+patom::types::patomic_int picostation::g_sectorSending;  // core0: r, core1: w
 
 bool picostation::g_subqDelay = false;  // core0: r/w
 
@@ -46,7 +48,11 @@ static int s_currentPlaybackSpeed = 1;
 int picostation::g_targetPlaybackSpeed = 1;  // core0: r/w
 
 mutex_t picostation::g_mechaconMutex;
-volatile bool picostation::g_coreReady[2] = {false, false};
+bool picostation::g_coreReady[2] = {false, false};
+
+// volatile uint picostation::g_audioCtrlMode = audioControlModes::NORMAL;
+// volatile int32_t picostation::g_audioPeak = 0;
+// volatile int32_t picostation::g_audioLevel = 0;
 
 static uint s_mechachonOffset;
 uint picostation::g_soctOffset;
@@ -77,14 +83,16 @@ static void initPWM(picostation::PWMSettings *settings);
     }
 
     while (true) {
-        // Limit Switch
-        gpio_put(Pin::LMTSW, g_sector > 3000);
-
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
             mechcommand::updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
+
+        const auto currentSector = g_sector.Load();
+
+        // Limit Switch
+        gpio_put(Pin::LMTSW, currentSector > 3000);
 
         updatePlaybackSpeed();
 
@@ -92,7 +100,7 @@ static void initPWM(picostation::PWMSettings *settings);
         maybeReset();
 
         // Soct/Sled/seek
-        if (g_soctEnabled) {
+        if (g_soctEnabled.Load()) {
             uint interrupts = save_and_disable_interrupts();
             // waiting for RX FIFO entry does not work.
             sleep_us(300);
@@ -102,22 +110,22 @@ static void initPWM(picostation::PWMSettings *settings);
         } else if (g_sledMoveDirection != SledMove::STOP) {
             if ((time_us_64() - g_sledTimer) > c_MaxTrackMoveTime) {
                 g_track = clamp(g_track + g_sledMoveDirection, c_trackMin, c_trackMax);  // +1 or -1
-                g_sector = trackToSector(g_track);
-                g_sectorForTrackUpdate = g_sector;
+                g_sectorForTrackUpdate = trackToSector(g_track);
+                g_sector = g_sectorForTrackUpdate;
 
                 const int tracks_moved = g_track - g_originalTrack;
                 if (abs(tracks_moved) >= g_countTrack) {
                     g_originalTrack = g_track;
-                    mechcommand::setSens(SENS::COUT, !mechcommand::g_sensData[SENS::COUT]);
+                    mechcommand::setSens(SENS::COUT, !mechcommand::getSens(SENS::COUT));
                 }
 
                 g_sledTimer = time_us_64();
             }
-        } else if (mechcommand::g_sensData[SENS::GFS]) {
+        } else if (mechcommand::getSens(SENS::GFS)) {
             if (g_subqDelay) {
                 if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) {
                     g_subqDelay = false;
-                    subq.start_subq(g_sector);
+                    subq.start_subq(currentSector);
 
                     gpio_put(Pin::SCOR, 1);
                     add_alarm_in_us(
@@ -128,11 +136,11 @@ static void initPWM(picostation::PWMSettings *settings);
                         },
                         NULL, true);
                 }
-            } else if (g_sectorSending == g_sector) {
-                g_sector = clamp(g_sector + 1, c_sectorMin, c_sectorMax);
-                if ((g_sector - g_sectorForTrackUpdate) >= sector_per_track)  // Moved to next track?
+            } else if (g_sectorSending.Load() == currentSector) {
+                g_sector = clamp(currentSector + 1, c_sectorMin, c_sectorMax);
+                if ((currentSector - g_sectorForTrackUpdate) >= sector_per_track)  // Moved to next track?
                 {
-                    g_sectorForTrackUpdate = g_sector;
+                    g_sectorForTrackUpdate = currentSector;
                     g_track = clamp(g_track + 1, c_trackMin, c_trackMax);
                     sector_per_track = sectorsPerTrack(g_track);
                 }
@@ -164,8 +172,9 @@ void picostation::initHW() {
 
     // srand(time(NULL)); // Causes an insane size increase of the binary for some reason?
     // To-do: Investigate this later...
-    srand(4);  // chosen by fair dice roll.
-               // guaranteed to be random.
+    // srand(4);  // chosen by fair dice roll.
+    // guaranteed to be random.
+    srand(time_us_32());
 
     mutex_init(&g_mechaconMutex);
 

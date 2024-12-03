@@ -5,10 +5,9 @@
 namespace picostation {
 namespace mechcommand {
 
-extern volatile bool g_sensData[16];
-
+bool getSens(const uint what);
 void interrupt_xlat(uint gpio, uint32_t events);
-void setSens(uint what, bool new_value);
+void setSens(const uint what, const bool new_value);
 void updateMechSens();
 }  // namespace mechcommand
 }  // namespace picostation

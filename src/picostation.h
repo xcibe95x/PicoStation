@@ -1,7 +1,17 @@
 #include "hardware/pwm.h"
 #include "pico/multicore.h"
+#include "third_party/RP2040_Pseudo_Atomic/Inc/RP2040Atomic.hpp"
 
 namespace picostation {
+
+namespace audioControlModes {
+enum : uint {
+    NORMAL = 0b00,
+    LEVELMETER = 0b01,
+    PEAKMETER = 0b10,
+    ALTNORMAL = 0b11,
+};
+}
 
 struct PWMSettings {
     const uint gpio;
@@ -14,7 +24,7 @@ struct PWMSettings {
 };
 
 extern mutex_t g_mechaconMutex;
-extern volatile bool g_coreReady[2];
+extern bool g_coreReady[2];
 
 extern uint g_soctOffset;
 extern uint g_subqOffset;
@@ -22,14 +32,17 @@ extern uint g_subqOffset;
 extern uint g_countTrack;
 extern int g_track;
 extern int g_originalTrack;
-extern volatile int g_sector;
+extern patom::types::patomic_int g_sector;
 extern int g_sectorForTrackUpdate;
-extern volatile int g_sectorSending;
+extern patom::types::patomic_int g_sectorSending;
 extern int g_sledMoveDirection;
 extern uint64_t g_sledTimer;
-extern volatile bool g_soctEnabled;
+extern patom::types::patomic_bool g_soctEnabled;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
+// extern volatile uint g_audioCtrlMode;
+// extern volatile int32_t g_audioPeak;
+// extern volatile int32_t g_audioLevel;
 
 [[noreturn]] void core0Entry();  // Reset, playback speed, Sled, soct, subq
 [[noreturn]] void core1Entry();  // I2S, sdcard, psnee
@@ -37,5 +50,4 @@ extern int g_targetPlaybackSpeed;
 void initHW();
 void updatePlaybackSpeed();
 void maybeReset();
-
 }  // namespace picostation
