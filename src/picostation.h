@@ -40,7 +40,7 @@ extern uint64_t g_sledTimer;
 extern patom::types::patomic_bool g_soctEnabled;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
-// extern volatile uint g_audioCtrlMode;
+extern uint g_audioCtrlMode;
 // extern volatile int32_t g_audioPeak;
 // extern volatile int32_t g_audioLevel;
 

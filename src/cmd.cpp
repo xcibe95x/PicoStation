@@ -92,8 +92,8 @@ static inline void picostation::mechcommand::audioControl(const uint latched) {
         return;
     }
 
-    /*g_audioCtrlMode = (latched & (pct1_bit | pct2_bit)) >> 14;
-    switch (g_audioCtrlMode) {
+    g_audioCtrlMode = (latched & (pct1_bit | pct2_bit)) >> 14;
+    /*switch (g_audioCtrlMode) {
         case audioControlModes::NORMAL:
         case audioControlModes::ALTNORMAL:
             g_audioPeak = 0;

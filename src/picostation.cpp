@@ -50,7 +50,7 @@ int picostation::g_targetPlaybackSpeed = 1;  // core0: r/w
 mutex_t picostation::g_mechaconMutex;
 bool picostation::g_coreReady[2] = {false, false};
 
-// volatile uint picostation::g_audioCtrlMode = audioControlModes::NORMAL;
+uint picostation::g_audioCtrlMode = audioControlModes::NORMAL;
 // volatile int32_t picostation::g_audioPeak = 0;
 // volatile int32_t picostation::g_audioLevel = 0;
 
