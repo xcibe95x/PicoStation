@@ -22,13 +22,18 @@ I've taken some pretty drastic design choices with my fork of this project, such
 ### Notes
 
 
-### To-do (see <a href="https://github.com/paulocode/picostation/issues">issues</a>)
+### To-do
 - ~~Stabilize image loading~~
 - Make an interface for image choice/loading
-- Make it possible to update the pico via SD card
+- ~~Make it possible to update the pico via SD card~~ <- Maybe this eventually, but not really a priority for me at the moment.
 
 ### Links
 - Original repo this fork is based on: https://github.com/paulocode/picostation
+- The cue parser used in this project was written by Nicolas "Pixel" Noble, and is part of the PCSX-Redux repo: https://github.com/grumpycoders/pcsx-redux/tree/main/third_party/cueparser
+- The SD card driver is by carlk3 and can be found here: https://github.com/carlk3/no-OS-FatFS-SD-SPI-RPi-Pico/
+- Raspberry Pi Pico Visual Studio Code extension: https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico
+- rama, the maker of xStation, was regularly dropping hints on how to fix/improve picostation, which was a huge motivater for me to take on this project. He has continued to be helpful as I've made progress, so it only feels fair to show some love. Consider buying an xStation, it's a fantastic product, and will support future development of mStation https://stoneagegamer.com/xstation-playstation-ode.html
+- psx.dev discord server: https://discord.gg/QByKPpH
 - PCB: https://github.com/paulocode/picostation_pcb
 - FAQ: https://github.com/paulocode/picostation_faq
 - Slow Solder Board (SSB) solder points / checking connection: https://mmmonkey.co.uk/xstation-sony-playstation-install-notes-and-pinout/
