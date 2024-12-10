@@ -9,6 +9,11 @@ pico_sdk_init()
 
 add_executable(picostation)
 
+target_compile_definitions(
+    picostation PUBLIC
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
+)
+
 target_sources(picostation PRIVATE
     src/cmd.cpp
     src/disc_image.cpp
