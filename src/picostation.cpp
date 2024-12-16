@@ -54,6 +54,8 @@ uint picostation::g_audioCtrlMode = audioControlModes::NORMAL;
 // volatile int32_t picostation::g_audioPeak = 0;
 // volatile int32_t picostation::g_audioLevel = 0;
 
+patom::PseudoAtomic<picostation::FileListingStates> picostation::g_fileListingState;
+
 static uint s_mechachonOffset;
 uint picostation::g_soctOffset;
 uint picostation::g_subqOffset;
@@ -245,7 +247,7 @@ void picostation::initHW() {
     DEBUG_PRINT("ON!\n");
 }
 
-void initPWM(picostation::PWMSettings *settings) {
+static void initPWM(picostation::PWMSettings *settings) {
     gpio_set_function(settings->gpio, GPIO_FUNC_PWM);
     settings->sliceNum = pwm_gpio_to_slice_num(settings->gpio);
     settings->config = pwm_get_default_config();

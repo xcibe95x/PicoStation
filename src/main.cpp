@@ -9,9 +9,8 @@ int main() {
 
     patom::PseudoAtomicInit();
 
-    multicore_launch_core1(picostation::core1Entry); // I2S Thread
-
     picostation::initHW();
+    multicore_launch_core1(picostation::core1Entry); // I2S Thread
 
     picostation::core0Entry(); // Reset, playback speed, Sled, soct, subq
     __builtin_unreachable();

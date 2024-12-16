@@ -253,8 +253,8 @@ static inline void picostation::mechcommand::trackingMode(const uint latched)  /
 
         default:  // case 0: case 1: // sled servo off/on
             if (g_sledMoveDirection != SledMove::STOP) {
-            g_sectorForTrackUpdate = trackToSector(g_track);
-            g_sector = g_sectorForTrackUpdate;
+                g_sectorForTrackUpdate = trackToSector(g_track);
+                g_sector = g_sectorForTrackUpdate;
             }
             g_sledMoveDirection = SledMove::STOP;
             return;
@@ -347,27 +347,16 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
             case 0x3:
             case 0x5: // Blind/brake
             case 0x6: // Kick
-                break;
-
-            case commands::CUSTOM: // picostation
-                switch ((latched & 0x0F0000) >> 16)
-                {
-                case 0x0: // Iamge 0
-                    DEBUG_PRINT("Image 0 command!\n");
-                    g_imageIndex = 0;
-                    break;
-
-                case 0x1: // Previous Image
-                    DEBUG_PRINT("Previous Image command!\n");
-                    g_imageIndex = (g_imageIndex - 1) % NUM_IMAGES;
-                    break;
-
-                case 0x2: // Next Image
-                    DEBUG_PRINT("Next Image command!\n");
-                    g_imageIndex = (g_imageIndex + 1) % NUM_IMAGES;
-                    break;
-                }
                 break;*/
+
+        case commands::CUSTOM:  // picostation
+            switch ((latched & 0x0F0000) >> 16) {
+                case 0x1:
+                    g_fileListingState = FileListingStates::GETDIRECTORY;
+                    printf("Custom command: %x\n", latched);
+                    break;
+            }
+            break;
     }
 }
 

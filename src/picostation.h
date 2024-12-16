@@ -13,6 +13,15 @@ enum : uint {
 };
 }
 
+enum class FileListingStates {
+    IDLE,
+    GETTINGDIRFILECOUNT,
+    DIRREADY,
+    GETDIRECTORY,
+};
+
+extern patom::PseudoAtomic<FileListingStates> g_fileListingState;
+
 struct PWMSettings {
     const uint gpio;
     uint sliceNum;

@@ -27,6 +27,8 @@ target_sources(picostation PRIVATE
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
+    third_party/iec-60908b/edcecc.c
+    third_party/iec-60908b/tables.c
     third_party/posix_file.c
 )
 
@@ -38,7 +40,7 @@ target_include_directories(picostation PRIVATE
 add_subdirectory(third_party/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
-pico_enable_stdio_usb(picostation 0)
+pico_enable_stdio_usb(picostation 1)
 
 pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 

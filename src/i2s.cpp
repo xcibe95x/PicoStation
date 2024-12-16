@@ -20,6 +20,7 @@
 #include "picostation.h"
 #include "rtc.h"
 #include "subq.h"
+#include "third_party/iec-60908b/edcecc.h"
 #include "utils.h"
 #include "values.h"
 
@@ -35,6 +36,68 @@ const TCHAR target_Cues[NUM_IMAGES][11] = {
 const int g_imageIndex = 0;  // To-do: Implement a console side menu to select the cue file
 
 static uint64_t s_psneeTimer;
+
+int getNumberofFileEntries(const char *dir) {
+    int count = 0;
+    DIR dirObj;
+    FILINFO fileInfo;
+    FRESULT fr = f_opendir(&dirObj, dir);
+    if (FR_OK != fr) {
+        DEBUG_PRINT("f_opendir error: %s (%d)\n", FRESULT_str(fr), fr);
+        return -1;
+    }
+    while (f_readdir(&dirObj, &fileInfo) == FR_OK && fileInfo.fname[0]) {
+        count++;
+    }
+    f_closedir(&dirObj);
+    return count;
+}
+
+void ls(const char *dir) {
+    char cwdbuf[FF_LFN_BUF] = {0};
+    FRESULT fr; /* Return value */
+    char const *directory;
+    if (dir[0]) {
+        directory = dir;
+    } else {
+        fr = f_getcwd(cwdbuf, sizeof cwdbuf);
+        if (FR_OK != fr) {
+            DEBUG_PRINT("f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
+            return;
+        }
+        directory = cwdbuf;
+    }
+    DEBUG_PRINT("Directory Listing: %s\n", directory);
+    DIR dirObj;       /* Directory object */
+    FILINFO fileInfo; /* File information */
+    memset(&dirObj, 0, sizeof dirObj);
+    memset(&fileInfo, 0, sizeof fileInfo);
+    fr = f_findfirst(&dirObj, &fileInfo, directory, "*");
+    if (FR_OK != fr) {
+        DEBUG_PRINT("f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
+        return;
+    }
+    while (fr == FR_OK && fileInfo.fname[0]) { /* Repeat while an item is found */
+        /* Create a string that includes the file name, the file size and the
+         attributes string. */
+        const char *pcWritableFile = "writable file", *pcReadOnlyFile = "read only file", *pcDirectory = "directory";
+        const char *pcAttrib;
+        /* Point pcAttrib to a string that describes the file. */
+        if (fileInfo.fattrib & AM_DIR) {
+            pcAttrib = pcDirectory;
+        } else if (fileInfo.fattrib & AM_RDO) {
+            pcAttrib = pcReadOnlyFile;
+        } else {
+            pcAttrib = pcWritableFile;
+        }
+        /* Create a string that includes the file name, the file size and the
+         attributes string. */
+        DEBUG_PRINT("%s [%s] [size=%llu]\n", fileInfo.fname, pcAttrib, fileInfo.fsize);
+
+        fr = f_findnext(&dirObj, &fileInfo); /* Search for next item */
+    }
+    f_closedir(&dirObj);
+}
 
 inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
@@ -80,6 +143,63 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     return channel;
 }
 
+void readDirectoryToBuffer(void *buffer, const char *dir) {
+    // Put the directory listing into the buffer until full or no more files
+    const uint buffer_size = 2352;
+    char *buf_ptr = (char *)buffer;
+    uint remaining_size = buffer_size;
+
+    char cwdbuf[FF_LFN_BUF] = {0};
+    FRESULT fr; /* Return value */
+    char const *directory;
+    if (dir[0]) {
+        directory = dir;
+    } else {
+        fr = f_getcwd(cwdbuf, sizeof cwdbuf);
+        if (FR_OK != fr) {
+            snprintf(buf_ptr, remaining_size, "f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
+            return;
+        }
+        directory = cwdbuf;
+    }
+    int written = snprintf(buf_ptr, remaining_size, "Directory Listing: %s\n", directory);
+    buf_ptr += written;
+    remaining_size -= written;
+
+    DIR dirObj;       /* Directory object */
+    FILINFO fileInfo; /* File information */
+    memset(&dirObj, 0, sizeof dirObj);
+    memset(&fileInfo, 0, sizeof fileInfo);
+    fr = f_findfirst(&dirObj, &fileInfo, directory, "*");
+    if (FR_OK != fr) {
+        snprintf(buf_ptr, remaining_size, "f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
+        return;
+    }
+    while (fr == FR_OK && fileInfo.fname[0] &&
+           remaining_size > 0) { /* Repeat while an item is found and buffer has space */
+        /* Create a string that includes the file name, the file size and the
+         attributes string. */
+        const char *pcWritableFile = "writable file", *pcReadOnlyFile = "read only file", *pcDirectory = "directory";
+        const char *pcAttrib;
+        /* Point pcAttrib to a string that describes the file. */
+        if (fileInfo.fattrib & AM_DIR) {
+            pcAttrib = pcDirectory;
+        } else if (fileInfo.fattrib & AM_RDO) {
+            pcAttrib = pcReadOnlyFile;
+        } else {
+            pcAttrib = pcWritableFile;
+        }
+        /* Create a string that includes the file name, the file size and the
+         attributes string. */
+        written = snprintf(buf_ptr, remaining_size, "%s [%s] [size=%llu]\n", fileInfo.fname, pcAttrib, fileInfo.fsize);
+        buf_ptr += written;
+        remaining_size -= written;
+
+        fr = f_findnext(&dirObj, &fileInfo); /* Search for next item */
+    }
+    f_closedir(&dirObj);
+}
+
 [[noreturn]] void __time_critical_func(picostation::I2S::start)() {
     static constexpr int c_sectorCacheSize = 50;
 
@@ -98,6 +218,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     auto currentSector = -1;
     g_sectorSending = -1;
     int loadedImageIndex = -1;
+    int filesinDir = 0;
 
     generateScramblingKey(cdScramblingKey);
 
@@ -151,7 +272,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
 
             // Sector cache lookup/update
             int cache_hit = -1;
-            // Need to take a different path if sector is in the lead-in/pregap
+
             for (int i = 0; i < c_sectorCacheSize; i++) {
                 if (cachedSectors[i] == currentSector) {
                     cache_hit = i;
@@ -160,7 +281,51 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
             }
 
             if (cache_hit == -1) {
-                g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                const FileListingStates fileListingState = g_fileListingState.Load();
+
+                uint8_t *buffer = reinterpret_cast<uint8_t *>(cdSamples[roundRobinCacheIndex]);
+
+                if (currentSector == 6969 + c_leadIn + c_preGap) {
+                    switch (fileListingState) {
+                        case FileListingStates::GETTINGDIRFILECOUNT:
+                            filesinDir = getNumberofFileEntries("/");
+                            g_fileListingState = FileListingStates::DIRREADY;
+                            break;
+                        case FileListingStates::DIRREADY:
+                            g_fileListingState = FileListingStates::IDLE;
+                            break;
+
+                        case FileListingStates::GETDIRECTORY:
+                            // printf("Getting directory\n");
+                            // eadDirectoryToBuffer(cdSamples[roundRobinCacheIndex], "/");
+                            // filesinDir = getNumberofFileEntries("/");
+
+                            // Sync field
+                            buffer[0] = 0;
+                            memset(buffer + 1, 0xFF, 10);
+                            buffer[11] = 0;
+
+                            // Header field
+                            // Sector address - 3 bytes
+                            buffer[12] = 0x01;
+                            buffer[13] = 0x34;
+                            buffer[14] = 0x69;
+
+                            // Mode - 1 byte
+                            buffer[15] = 0x02;
+
+                            memset(buffer + 16, 0x69, 2336);
+                            compute_edcecc(buffer);
+                            // g_fileListingState = FileListingStates::IDLE;
+                            break;
+
+                        case FileListingStates::IDLE:
+                            g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                            break;
+                    }
+                } else {
+                    g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                }
 
                 cachedSectors[roundRobinCacheIndex] = currentSector;
                 cache_hit = roundRobinCacheIndex;

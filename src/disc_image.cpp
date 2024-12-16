@@ -292,7 +292,7 @@ void picostation::DiscImage::readData(void *buffer, const int sector) {
     for (int i = 1; i <= m_cueDisc.trackCount + 1; i++) {
         if (sector < m_cueDisc.tracks[i + 1].indices[0]) {
             if (m_cueDisc.tracks[i].file->opaque) {
-                int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
+                const int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
                 if (seekBytes >= 0) {
                     fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
                     if (FR_OK != fr) {
