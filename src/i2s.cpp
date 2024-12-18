@@ -20,7 +20,6 @@
 #include "picostation.h"
 #include "rtc.h"
 #include "subq.h"
-#include "third_party/iec-60908b/edcecc.h"
 #include "utils.h"
 #include "values.h"
 
@@ -145,7 +144,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
 
 void readDirectoryToBuffer(void *buffer, const char *dir) {
     // Put the directory listing into the buffer until full or no more files
-    const uint buffer_size = 2352;
+    const uint buffer_size = 2336;
     char *buf_ptr = (char *)buffer;
     uint remaining_size = buffer_size;
 
@@ -162,9 +161,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
         }
         directory = cwdbuf;
     }
-    int written = snprintf(buf_ptr, remaining_size, "Directory Listing: %s\n", directory);
-    buf_ptr += written;
-    remaining_size -= written;
+    int written = 0;
 
     DIR dirObj;       /* Directory object */
     FILINFO fileInfo; /* File information */
@@ -179,19 +176,17 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
            remaining_size > 0) { /* Repeat while an item is found and buffer has space */
         /* Create a string that includes the file name, the file size and the
          attributes string. */
-        const char *pcWritableFile = "writable file", *pcReadOnlyFile = "read only file", *pcDirectory = "directory";
+        const char *pcFile = "F", *pcDirectory = "D";
         const char *pcAttrib;
         /* Point pcAttrib to a string that describes the file. */
         if (fileInfo.fattrib & AM_DIR) {
             pcAttrib = pcDirectory;
-        } else if (fileInfo.fattrib & AM_RDO) {
-            pcAttrib = pcReadOnlyFile;
         } else {
-            pcAttrib = pcWritableFile;
+            pcAttrib = pcFile;
         }
         /* Create a string that includes the file name, the file size and the
          attributes string. */
-        written = snprintf(buf_ptr, remaining_size, "%s [%s] [size=%llu]\n", fileInfo.fname, pcAttrib, fileInfo.fsize);
+        written = snprintf(buf_ptr, remaining_size, "%s%s\n", pcAttrib, fileInfo.fname);
         buf_ptr += written;
         remaining_size -= written;
 
@@ -223,6 +218,10 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
     generateScramblingKey(cdScramblingKey);
 
     mountSDCard();
+
+    // For testing only
+    uint8_t directoryListing[2336];
+    readDirectoryToBuffer(directoryListing, "/");
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
@@ -285,46 +284,14 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
 
                 uint8_t *buffer = reinterpret_cast<uint8_t *>(cdSamples[roundRobinCacheIndex]);
 
-                if (currentSector == 6969 + c_leadIn + c_preGap) {
-                    switch (fileListingState) {
-                        case FileListingStates::GETTINGDIRFILECOUNT:
-                            filesinDir = getNumberofFileEntries("/");
-                            g_fileListingState = FileListingStates::DIRREADY;
-                            break;
-                        case FileListingStates::DIRREADY:
-                            g_fileListingState = FileListingStates::IDLE;
-                            break;
+                switch (fileListingState) {
+                    case FileListingStates::GETDIRECTORY:
+                        g_discImage.buildSector(currentSector - c_leadIn, buffer, directoryListing);
+                        break;
 
-                        case FileListingStates::GETDIRECTORY:
-                            // printf("Getting directory\n");
-                            // eadDirectoryToBuffer(cdSamples[roundRobinCacheIndex], "/");
-                            // filesinDir = getNumberofFileEntries("/");
-
-                            // Sync field
-                            buffer[0] = 0;
-                            memset(buffer + 1, 0xFF, 10);
-                            buffer[11] = 0;
-
-                            // Header field
-                            // Sector address - 3 bytes
-                            buffer[12] = 0x01;
-                            buffer[13] = 0x34;
-                            buffer[14] = 0x69;
-
-                            // Mode - 1 byte
-                            buffer[15] = 0x02;
-
-                            memset(buffer + 16, 0x69, 2336);
-                            compute_edcecc(buffer);
-                            // g_fileListingState = FileListingStates::IDLE;
-                            break;
-
-                        case FileListingStates::IDLE:
-                            g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
-                            break;
-                    }
-                } else {
-                    g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                    case FileListingStates::IDLE:
+                        g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                        break;
                 }
 
                 cachedSectors[roundRobinCacheIndex] = currentSector;

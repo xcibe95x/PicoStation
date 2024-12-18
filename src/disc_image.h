@@ -15,6 +15,7 @@ class DiscImage {
     DiscImage() {};
     ~DiscImage() {};
 
+    void buildSector(const int sector, uint8_t *buffer, uint8_t *userData);
     FRESULT load(const TCHAR *targetCue);
     SubQ::Data generateSubQ(const int sector);
     bool hasData() { return m_hasData; };

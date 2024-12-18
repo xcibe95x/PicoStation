@@ -5,13 +5,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../third_party/posix_file.h"
 #include "f_util.h"
 #include "ff.h"
 #include "logging.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
 #include "subq.h"
+#include "third_party/iec-60908b/edcecc.h"
+#include "third_party/posix_file.h"
 #include "utils.h"
 #include "values.h"
 
@@ -78,6 +79,35 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
     } else {
         parentPath[0] = 0;
     }
+}
+
+void picostation::DiscImage::buildSector(const int sector, uint8_t *buffer, uint8_t *userData) {
+    memset(buffer, 0, 2352);
+
+    // Sync field
+    //buffer[0] = 0;
+    memset(buffer + 1, 0xFF, 10);
+    //buffer[11] = 0;
+
+    // Header field
+    // Sector address - 3 bytes
+    const MSF msf = sectorToMSF(sector);
+    buffer[12] = toBCD(msf.mm);
+    buffer[13] = toBCD(msf.ss);
+    buffer[14] = toBCD(msf.ff);
+
+    // Mode - 1 byte
+    buffer[15] = 0x02;
+
+    // Form? - 1 byte?
+
+    // Data field
+    // Not 100% sure on the userdata length here
+    // I'm a bit confused by the yellowbook spec on this
+    memcpy(buffer + 16, userData, 2336);
+
+    // 
+    compute_edcecc(buffer);
 }
 
 picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
