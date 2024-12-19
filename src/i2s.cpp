@@ -142,11 +142,10 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transf
     return channel;
 }
 
-void readDirectoryToBuffer(void *buffer, const char *dir) {
+void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize = 2324) {
     // Put the directory listing into the buffer until full or no more files
-    const uint buffer_size = 2336;
     char *buf_ptr = (char *)buffer;
-    uint remaining_size = buffer_size;
+    uint remainingSize = bufferSize;
 
     char cwdbuf[FF_LFN_BUF] = {0};
     FRESULT fr; /* Return value */
@@ -156,7 +155,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
     } else {
         fr = f_getcwd(cwdbuf, sizeof cwdbuf);
         if (FR_OK != fr) {
-            snprintf(buf_ptr, remaining_size, "f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
+            snprintf(buf_ptr, remainingSize, "f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
             return;
         }
         directory = cwdbuf;
@@ -169,11 +168,11 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
     memset(&fileInfo, 0, sizeof fileInfo);
     fr = f_findfirst(&dirObj, &fileInfo, directory, "*");
     if (FR_OK != fr) {
-        snprintf(buf_ptr, remaining_size, "f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
+        snprintf(buf_ptr, remainingSize, "f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
         return;
     }
     while (fr == FR_OK && fileInfo.fname[0] &&
-           remaining_size > 0) { /* Repeat while an item is found and buffer has space */
+           remainingSize > 0) { /* Repeat while an item is found and buffer has space */
         /* Create a string that includes the file name, the file size and the
          attributes string. */
         const char *pcFile = "F", *pcDirectory = "D";
@@ -186,9 +185,9 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
         }
         /* Create a string that includes the file name, the file size and the
          attributes string. */
-        written = snprintf(buf_ptr, remaining_size, "%s%s\n", pcAttrib, fileInfo.fname);
+        written = snprintf(buf_ptr, remainingSize, "%s%s\n", pcAttrib, fileInfo.fname);
         buf_ptr += written;
-        remaining_size -= written;
+        remainingSize -= written;
 
         fr = f_findnext(&dirObj, &fileInfo); /* Search for next item */
     }
@@ -220,8 +219,9 @@ void readDirectoryToBuffer(void *buffer, const char *dir) {
     mountSDCard();
 
     // For testing only
-    uint8_t directoryListing[2336];
-    readDirectoryToBuffer(directoryListing, "/");
+    const uint c_userDataSize = 2324;
+    uint8_t directoryListing[2324] = {0};
+    readDirectoryToBuffer(directoryListing, "/", c_userDataSize);
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 

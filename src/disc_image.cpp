@@ -28,6 +28,19 @@ struct MSF {
     int ff;
 };
 
+namespace Submode {
+enum : uint8_t {
+    EndOfRecord = 1 << 0,
+    Video = 1 << 1,
+    Audio = 1 << 2,
+    Data = 1 << 3,
+    Trigger = 1 << 4,
+    Form = 1 << 5,
+    RealTime = 1 << 6,
+    EndOfFile = 1 << 7,
+};
+}
+
 picostation::DiscImage picostation::g_discImage;
 
 static constexpr uint16_t crc16_lut[256] = {
@@ -82,31 +95,31 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
 }
 
 void picostation::DiscImage::buildSector(const int sector, uint8_t *buffer, uint8_t *userData) {
-    memset(buffer, 0, 2352);
-
-    // Sync field
-    //buffer[0] = 0;
+    // Sync - 12 bytes
+    buffer[0] = 0;
     memset(buffer + 1, 0xFF, 10);
-    //buffer[11] = 0;
+    buffer[11] = 0;
 
-    // Header field
-    // Sector address - 3 bytes
+    // Header - 4 bytes
     const MSF msf = sectorToMSF(sector);
-    buffer[12] = toBCD(msf.mm);
-    buffer[13] = toBCD(msf.ss);
-    buffer[14] = toBCD(msf.ff);
+    buffer[12] = toBCD(msf.mm);  // M Minutes
+    buffer[13] = toBCD(msf.ss);  // S Seconds
+    buffer[14] = toBCD(msf.ff);  // F Frame/Sectors
+    buffer[15] = 0x02;           // Mode = 2
 
-    // Mode - 1 byte
-    buffer[15] = 0x02;
+    // Sub-Header - 8 bytes (Green book)
+    // buffer[16] = 0;                // File number
+    // buffer[17] = 0;                // Channel number
+    buffer[18] = (Submode::Form);  // Submode = Form 2, 2324 bytes of user data
+    // buffer[19] = 0;                // Coding information
+    // buffer[20] = 0;                // File number
+    // buffer[21] = 0;                // Channel number
+    // buffer[22] = 0;                // Submode
+    // buffer[23] = 0;                // Coding information
 
-    // Form? - 1 byte?
+    memcpy(buffer + 24, userData, 2324);
 
-    // Data field
-    // Not 100% sure on the userdata length here
-    // I'm a bit confused by the yellowbook spec on this
-    memcpy(buffer + 16, userData, 2336);
-
-    // 
+    // EDC/ECC - 4 bytes
     compute_edcecc(buffer);
 }
 
