@@ -1,5 +1,6 @@
 #include "i2s.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,7 @@
 
 #include "cmd.h"
 #include "disc_image.h"
+#include "drive_mechanics.h"
 #include "f_util.h"
 #include "ff.h"
 #include "hardware/dma.h"
@@ -103,7 +105,7 @@ inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
 
     memset(cdScramblingKey, 0, 1176 * sizeof(uint16_t));
 
-    for (int i = 6; i < 1176; i++) {
+    for (size_t i = 6; i < 1176; i++) {
         char upper = key & 0xFF;
         for (int j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
@@ -129,23 +131,23 @@ void picostation::I2S::mountSDCard() {
     }
 }
 
-inline int picostation::I2S::initDMA(const volatile void *read_addr, uint transfer_count) {
+inline int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count) {
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    const uint i2sDREQ = PIOInstance::I2S_DATA == pio0 ? DREQ_PIO0_TX0 : DREQ_PIO1_TX0;
+    const unsigned int i2sDREQ = PIOInstance::I2S_DATA == pio0 ? DREQ_PIO0_TX0 : DREQ_PIO1_TX0;
     channel_config_set_dreq(&c, i2sDREQ);
     dma_channel_configure(channel, &c, &PIOInstance::I2S_DATA->txf[SM::I2S_DATA], read_addr, transfer_count, false);
 
     return channel;
 }
 
-void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize = 2324) {
+void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int bufferSize = 2324) {
     // Put the directory listing into the buffer until full or no more files
     char *buf_ptr = (char *)buffer;
-    uint remainingSize = bufferSize;
+    unsigned int remainingSize = bufferSize;
 
     char cwdbuf[FF_LFN_BUF] = {0};
     FRESULT fr; /* Return value */
@@ -195,7 +197,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
 }
 
 [[noreturn]] void __time_critical_func(picostation::I2S::start)() {
-    static constexpr int c_sectorCacheSize = 50;
+    static constexpr size_t c_sectorCacheSize = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
     uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0};
@@ -209,7 +211,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
 
     uint16_t cdScramblingKey[1176];
 
-    auto currentSector = -1;
+    int currentSector = -1;
     g_sectorSending = -1;
     int loadedImageIndex = -1;
     int filesinDir = 0;
@@ -219,7 +221,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
     mountSDCard();
 
     // For testing only
-    const uint c_userDataSize = 2324;
+    const unsigned int c_userDataSize = 2324;
     uint8_t directoryListing[2324] = {0};
     readDirectoryToBuffer(directoryListing, "/", c_userDataSize);
 
@@ -241,7 +243,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
         }
 
         // Sector could change during the loop, so we need to keep track of it
-        currentSector = g_sector.Load();
+        currentSector = g_driveMechanics.getSector();
 
         psnee(currentSector);
 
@@ -263,8 +265,9 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
         if (bufferForDMA != bufferForSDRead) {
             uint64_t sector_change_timer = time_us_64();
             while ((time_us_64() - sector_change_timer) < 100) {
-                if (currentSector != g_sector.Load()) {
-                    currentSector = g_sector.Load();
+                const int sector = g_driveMechanics.getSector();
+                if (currentSector != sector) {
+                    currentSector = sector;
                     sector_change_timer = time_us_64();
                 }
             }
@@ -272,7 +275,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
             // Sector cache lookup/update
             int cache_hit = -1;
 
-            for (int i = 0; i < c_sectorCacheSize; i++) {
+            for (size_t i = 0; i < c_sectorCacheSize; i++) {
                 if (cachedSectors[i] == currentSector) {
                     cache_hit = i;
                     break;
@@ -302,7 +305,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const uint bufferSize 
             const int16_t *data = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
             const unsigned abs_lev_chselect = (currentSector % 2);
             // Copy CD samples to PIO buffer
-            for (int i = 0; i < c_cdSamplesSize * 2; i++) {
+            for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
                 uint32_t i2s_data;
 
                 if (g_discImage.isCurrentTrackData()) {

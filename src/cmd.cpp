@@ -1,12 +1,13 @@
 #include "cmd.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include "drive_mechanics.h"
 #include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
-#include "pico/stdlib.h"
 #include "picostation.h"
 #include "utils.h"
 #include "values.h"
@@ -17,12 +18,12 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-void setSens(uint what, bool new_value);
+void setSens(uint32_t what, bool new_value);
 
 namespace picostation {
 namespace mechcommand {
-namespace commands {
-enum : uint {
+namespace TopLevelCommands {
+enum : uint32_t {
     FOCUS_CONTROL = 0x0,
     TRACKING_MODE = 0x2,
     AUTO_SEQUENCE = 0x4,
@@ -36,7 +37,7 @@ enum : uint {
 }
 
 namespace SpindleCommands {
-enum : uint {
+enum : uint32_t {
     STOP = 0b0000,   // 0
     KICK = 0b1000,   // 8
     BRAKE = 0b1010,  // A
@@ -51,8 +52,8 @@ static int s_autoSeqTrack = 0;
 static int s_jumpTrack = 0;
 static alarm_id_t s_autoSeqAlarmID = 0;
 
-static uint s_currentSens;
-static uint s_latched = 0;  // Command latch
+static size_t s_currentSens;
+static uint32_t s_latched = 0;  // Command latch
 static bool s_sensData[16] = {
     0,  // $0X - FZC
     0,  // $1X - AS
@@ -72,19 +73,19 @@ static bool s_sensData[16] = {
     0   // $FX - 0
 };
 
-static void audioControl(const uint latched);
-static void autoSequence(const uint latched);
-static void funcSpec(const uint latched);
-static void modeSpec(const uint latched);
-static void trackingMode(const uint latched);
-static void spindleControl(const uint latched);
+static void audioControl(const uint32_t latched);
+static void autoSequence(const uint32_t latched);
+static void funcSpec(const uint32_t latched);
+static void modeSpec(const uint32_t latched);
+static void trackingMode(const uint32_t latched);
+static void spindleControl(const uint32_t latched);
 }  // namespace mechcommand
 }  // namespace picostation
 
-static inline void picostation::mechcommand::audioControl(const uint latched) {
-    const uint pct2_bit = (1 << 14);
-    const uint pct1_bit = (1 << 15);
-    const uint mute_bit = (1 << 17);
+static inline void picostation::mechcommand::audioControl(const uint32_t latched) {
+    const uint32_t pct2_bit = (1 << 14);
+    const uint32_t pct1_bit = (1 << 15);
+    const uint32_t mute_bit = (1 << 17);
 
     if (latched & mute_bit) {
         // g_audioCtrlMode = 0;
@@ -110,12 +111,12 @@ static inline void picostation::mechcommand::audioControl(const uint latched) {
     }*/
 }
 
-static inline void picostation::mechcommand::autoSequence(const uint latched)  // $4X
+static inline void picostation::mechcommand::autoSequence(const uint32_t latched)  // $4X
 {
-    const uint subCommand = (latched & 0x0F0000) >> 16;
+    const uint32_t subCommand = (latched & 0x0F0000) >> 16;
     const bool reverseJump = subCommand & 0x1;
-    // const uint timer_range = (latched & 0x8) >> 3;
-    // const uint cancel_timer = (latched & 0xF) >> 4;
+    // const uint32_t timer_range = (latched & 0x8) >> 3;
+    // const uint32_t cancel_timer = (latched & 0xF) >> 4;
 
     int tracks_to_move = 0;
 
@@ -162,10 +163,12 @@ static inline void picostation::mechcommand::autoSequence(const uint latched)  /
             break;
     }
 
+    const int track = g_driveMechanics.getTrack();
+
     if (reverseJump) {
-        s_autoSeqTrack = g_track - tracks_to_move;
+        s_autoSeqTrack = track - tracks_to_move;
     } else {
-        s_autoSeqTrack = g_track + tracks_to_move;
+        s_autoSeqTrack = track + tracks_to_move;
     }
 
     if (!s_autoSeqAlarmID) {
@@ -174,9 +177,7 @@ static inline void picostation::mechcommand::autoSequence(const uint latched)  /
             [](alarm_id_t id, void *user_data) -> int64_t {
                 const int track = *(int *)user_data;
                 s_autoSeqAlarmID = 0;
-                g_track = clamp(track, c_trackMin, c_trackMax);
-                g_sectorForTrackUpdate = trackToSector(g_track);
-                g_sector = g_sectorForTrackUpdate;
+                g_driveMechanics.setTrack(track);
                 s_sensData[SENS::XBUSY] = 0;
                 return 0;
             },
@@ -184,7 +185,7 @@ static inline void picostation::mechcommand::autoSequence(const uint latched)  /
     }
 }
 
-static inline void picostation::mechcommand::funcSpec(const uint latched)  // $9X
+static inline void picostation::mechcommand::funcSpec(const uint32_t latched)  // $9X
 {
     // const bool flfc = latched & (1 << 13);
     // const bool biligl_sub = latched & (1 << 14);
@@ -202,7 +203,7 @@ static inline void picostation::mechcommand::funcSpec(const uint latched)  // $9
     }
 }
 
-static inline void picostation::mechcommand::modeSpec(const uint latched)  // $8X
+static inline void picostation::mechcommand::modeSpec(const uint32_t latched)  // $8X
 {
     const bool soct = latched & (1 << 13);
     // const bool ashs = latched & (1 << 14);
@@ -221,50 +222,38 @@ static inline void picostation::mechcommand::modeSpec(const uint latched)  // $8
     }
 }
 
-static inline void picostation::mechcommand::trackingMode(const uint latched)  // $2X
+static inline void picostation::mechcommand::trackingMode(const uint32_t latched)  // $2X
 {
-    const uint subcommand_tracking = (latched & 0x0C0000) >> 16;
+    const uint32_t subcommand_tracking = (latched & 0x0C0000) >> 16;
     switch (subcommand_tracking)  // Tracking servo
     {
         case 8:  // Forward track jump
-            g_track = clamp(g_track + 1, c_trackMin, c_trackMax);
-            g_sectorForTrackUpdate = trackToSector(g_track);
-            g_sector = g_sectorForTrackUpdate;
+            g_driveMechanics.moveTrack(1);
             break;
         case 0xC:  // Reverse track jump
-            g_track = clamp(g_track - 1, c_trackMin, c_trackMax);
-            g_sectorForTrackUpdate = trackToSector(g_track);
-            g_sector = g_sectorForTrackUpdate;
+            g_driveMechanics.moveTrack(-1);
             break;
     }
 
-    const uint subcommand_sled = (latched & 0x030000) >> 16;
+    const uint32_t subcommand_sled = (latched & 0x030000) >> 16;
     switch (subcommand_sled)  // Sled servo
     {
         case 2:  // Forward sled move
-            g_sledMoveDirection = SledMove::FORWARD;
-            g_originalTrack = g_track;
+            g_driveMechanics.setSledMoveDirection(SledMove::FORWARD);
             break;
 
         case 3:  // Reverse sled move
-            g_sledMoveDirection = SledMove::REVERSE;
-            g_originalTrack = g_track;
+            g_driveMechanics.setSledMoveDirection(SledMove::REVERSE);
             break;
 
         default:  // case 0: case 1: // sled servo off/on
-            if (g_sledMoveDirection != SledMove::STOP) {
-                g_sectorForTrackUpdate = trackToSector(g_track);
-                g_sector = g_sectorForTrackUpdate;
-            }
-            g_sledMoveDirection = SledMove::STOP;
+            g_driveMechanics.setSledMoveDirection(SledMove::STOP);
             return;
     }
-
-    g_sledTimer = time_us_64();
 }
 
-static inline void picostation::mechcommand::spindleControl(const uint latched) {
-    const uint subCommand = (latched & 0x0F0000) >> 16;
+static inline void picostation::mechcommand::spindleControl(const uint32_t latched) {
+    const uint32_t subCommand = (latched & 0x0F0000) >> 16;
 
     s_sensData[SENS::GFS] = (subCommand == SpindleCommands::CLVA);
     if (!s_sensData[SENS::GFS]) {
@@ -303,29 +292,29 @@ static inline void picostation::mechcommand::spindleControl(const uint latched) 
     }*/
 }
 
-void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, uint32_t events) {
-    const uint latched = s_latched;
-    const uint command = (latched & 0xF00000) >> 20;
+void __time_critical_func(picostation::mechcommand::interrupt_xlat)(unsigned int gpio, uint32_t events) {
+    const uint32_t latched = s_latched;
+    const uint32_t command = (latched & 0xF00000) >> 20;
     s_latched = 0;
 
     switch (command) {
-        case commands::TRACKING_MODE:  // $2X commands - Tracking and sled servo control
+        case TopLevelCommands::TRACKING_MODE:  // $2X commands - Tracking and sled servo control
             trackingMode(latched);
             break;
 
-        case commands::AUTO_SEQUENCE:  // $4X commands
+        case TopLevelCommands::AUTO_SEQUENCE:  // $4X commands
             autoSequence(latched);
             break;
 
-        case commands::JUMP_COUNT:  // $7X commands - Auto sequence track jump count setting
+        case TopLevelCommands::JUMP_COUNT:  // $7X commands - Auto sequence track jump count setting
             s_jumpTrack = (latched & 0xFFFF0) >> 4;
             DEBUG_PRINT("jump: %d\n", s_jumpTrack);
             break;
 
-        case commands::MODE_SPEC:  // $8X commands - MODE specification
+        case TopLevelCommands::MODE_SPEC:  // $8X commands - MODE specification
             modeSpec(latched);
             break;
-        case commands::FUNC_SPEC:  // $9X commands - Function specification
+        case TopLevelCommands::FUNC_SPEC:  // $9X commands - Function specification
             funcSpec(latched);
             break;
 
@@ -333,23 +322,22 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
             audioControl(latched);
             break;
 
-        case commands::MONITOR_COUNT:  // $BX commands - This command sets the traverse monitor count.
-            g_countTrack = (latched & 0xFFFF0) >> 4;
-            DEBUG_PRINT("count: %d\n", g_countTrack);
+        case TopLevelCommands::MONITOR_COUNT:  // $BX commands - This command sets the traverse monitor count.
+            g_driveMechanics.setCountTrack((latched & 0xFFFF0) >> 4);
             break;
-        case commands::SPINDLE:  // $EX commands - Spindle motor control
+        case TopLevelCommands::SPINDLE:  // $EX commands - Spindle motor control
             spindleControl(latched);
             break;
 
             /*
-            case commands::FOCUS_CONTROL: // $0X commands - Focus control
+            case TopLevelCommands::FOCUS_CONTROL: // $0X commands - Focus control
             case 0x1:
             case 0x3:
             case 0x5: // Blind/brake
             case 0x6: // Kick
                 break;*/
 
-        case commands::CUSTOM:  // picostation
+        case TopLevelCommands::CUSTOM:  // picostation
             switch ((latched & 0x0F0000) >> 16) {
                 case 0x1:
                     g_fileListingState = FileListingStates::GETDIRECTORY;
@@ -360,9 +348,9 @@ void __time_critical_func(picostation::mechcommand::interrupt_xlat)(uint gpio, u
     }
 }
 
-bool __time_critical_func(picostation::mechcommand::getSens)(const uint what) { return s_sensData[what]; }
+bool __time_critical_func(picostation::mechcommand::getSens)(const size_t what) { return s_sensData[what]; }
 
-void __time_critical_func(picostation::mechcommand::setSens)(const uint what, const bool new_value) {
+void __time_critical_func(picostation::mechcommand::setSens)(const size_t what, const bool new_value) {
     s_sensData[what] = new_value;
     if (what == s_currentSens) {
         gpio_put(Pin::SENS, new_value);
@@ -371,10 +359,10 @@ void __time_critical_func(picostation::mechcommand::setSens)(const uint what, co
 
 void __time_critical_func(picostation::mechcommand::updateMechSens)() {
     while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON)) {
-        uint c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
+        const uint32_t c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
         s_latched = s_latched >> 8;
         s_latched = s_latched | (c << 16);
         s_currentSens = c >> 4;
-        gpio_put(Pin::SENS, s_sensData[c >> 4]);
     }
+    gpio_put(Pin::SENS, s_sensData[s_currentSens]);
 }

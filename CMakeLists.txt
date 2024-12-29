@@ -17,6 +17,7 @@ target_compile_definitions(
 target_sources(picostation PRIVATE
     src/cmd.cpp
     src/disc_image.cpp
+    src/drive_mechanics.cpp
     src/hw_config.cpp
     src/i2s.cpp
     src/main.cpp

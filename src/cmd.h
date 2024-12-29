@@ -1,13 +1,14 @@
 #pragma once
 
-#include "pico/stdlib.h"
+#include <stddef.h>
+#include <stdint.h>
 
 namespace picostation {
 namespace mechcommand {
 
-bool getSens(const uint what);
-void interrupt_xlat(uint gpio, uint32_t events);
-void setSens(const uint what, const bool new_value);
+bool getSens(const size_t what);
+void interrupt_xlat(unsigned int gpio, uint32_t events);
+void setSens(const size_t, const bool new_value);
 void updateMechSens();
 }  // namespace mechcommand
 }  // namespace picostation
