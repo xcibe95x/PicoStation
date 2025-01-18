@@ -31,6 +31,15 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
+#if FF_USE_LFN
+const size_t c_fileNameLength = FF_LFN_BUF;
+#else
+const size_t c_fileNameLength = 12 + 1;
+#endif
+static DIR s_dirObj;
+static int s_fileCount = -1;
+char cwdbuf[c_fileNameLength] = "/";
+
 const TCHAR target_Cues[NUM_IMAGES][11] = {
     "UNIROM.cue",
 };
@@ -54,53 +63,42 @@ int getNumberofFileEntries(const char *dir) {
     return count;
 }
 
-void ls(const char *dir) {
-    char cwdbuf[FF_LFN_BUF] = {0};
-    FRESULT fr; /* Return value */
-    char const *directory;
-    if (dir[0]) {
-        directory = dir;
-    } else {
-        fr = f_getcwd(cwdbuf, sizeof cwdbuf);
-        if (FR_OK != fr) {
-            DEBUG_PRINT("f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
-            return;
-        }
-        directory = cwdbuf;
-    }
-    DEBUG_PRINT("Directory Listing: %s\n", directory);
-    DIR dirObj;       /* Directory object */
-    FILINFO fileInfo; /* File information */
-    memset(&dirObj, 0, sizeof dirObj);
-    memset(&fileInfo, 0, sizeof fileInfo);
-    fr = f_findfirst(&dirObj, &fileInfo, directory, "*");
-    if (FR_OK != fr) {
-        DEBUG_PRINT("f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
-        return;
-    }
-    while (fr == FR_OK && fileInfo.fname[0]) { /* Repeat while an item is found */
-        /* Create a string that includes the file name, the file size and the
-         attributes string. */
-        const char *pcWritableFile = "writable file", *pcReadOnlyFile = "read only file", *pcDirectory = "directory";
-        const char *pcAttrib;
-        /* Point pcAttrib to a string that describes the file. */
-        if (fileInfo.fattrib & AM_DIR) {
-            pcAttrib = pcDirectory;
-        } else if (fileInfo.fattrib & AM_RDO) {
-            pcAttrib = pcReadOnlyFile;
-        } else {
-            pcAttrib = pcWritableFile;
-        }
-        /* Create a string that includes the file name, the file size and the
-         attributes string. */
-        DEBUG_PRINT("%s [%s] [size=%llu]\n", fileInfo.fname, pcAttrib, fileInfo.fsize);
+void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, const unsigned int bufferSize = 2324) {
+    FRESULT res;
+    DIR dir;
+    FILINFO fno;
 
-        fr = f_findnext(&dirObj, &fileInfo); /* Search for next item */
+    char *buf_ptr = (char *)buffer;
+    int remainingSize = bufferSize;
+
+    res = f_opendir(&dir, path); /* Open the directory */
+    if (res == FR_OK) {
+        if (offset > 0) {
+            for (int i = 0; i < offset; i++) {
+                res = f_readdir(&dir, &fno);
+                if (res != FR_OK || fno.fname[0] == 0) {
+                    break;
+                }
+            }
+        }
+        if (res == FR_OK) {
+            for (;;) {
+                res = f_readdir(&dir, &fno); /* Read a directory item */
+                if (res != FR_OK || fno.fname[0] == 0 || strlen(fno.fname) > remainingSize) {
+                    break;
+                } /* Error or end of dir */
+                const int written = snprintf(buf_ptr, remainingSize, "%s\n", fno.fname);
+                buf_ptr += written;
+                remainingSize -= written;
+            }
+        }
+        f_closedir(&dir);
+    } else {
+        DEBUG_PRINT("Failed to open \"%s\". (%u)\n", path, res);
     }
-    f_closedir(&dirObj);
 }
 
-inline void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
+void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
 
     memset(cdScramblingKey, 0, 1176 * sizeof(uint16_t));
@@ -131,7 +129,7 @@ void picostation::I2S::mountSDCard() {
     }
 }
 
-inline int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count) {
+int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count) {
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
@@ -144,59 +142,7 @@ inline int picostation::I2S::initDMA(const volatile void *read_addr, unsigned in
     return channel;
 }
 
-void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int bufferSize = 2324) {
-    // Put the directory listing into the buffer until full or no more files
-    char *buf_ptr = (char *)buffer;
-    unsigned int remainingSize = bufferSize;
-
-    char cwdbuf[FF_LFN_BUF] = {0};
-    FRESULT fr; /* Return value */
-    char const *directory;
-    if (dir[0]) {
-        directory = dir;
-    } else {
-        fr = f_getcwd(cwdbuf, sizeof cwdbuf);
-        if (FR_OK != fr) {
-            snprintf(buf_ptr, remainingSize, "f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
-            return;
-        }
-        directory = cwdbuf;
-    }
-    int written = 0;
-
-    DIR dirObj;       /* Directory object */
-    FILINFO fileInfo; /* File information */
-    memset(&dirObj, 0, sizeof dirObj);
-    memset(&fileInfo, 0, sizeof fileInfo);
-    fr = f_findfirst(&dirObj, &fileInfo, directory, "*");
-    if (FR_OK != fr) {
-        snprintf(buf_ptr, remainingSize, "f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
-        return;
-    }
-    while (fr == FR_OK && fileInfo.fname[0] &&
-           remainingSize > 0) { /* Repeat while an item is found and buffer has space */
-        /* Create a string that includes the file name, the file size and the
-         attributes string. */
-        const char *pcFile = "F", *pcDirectory = "D";
-        const char *pcAttrib;
-        /* Point pcAttrib to a string that describes the file. */
-        if (fileInfo.fattrib & AM_DIR) {
-            pcAttrib = pcDirectory;
-        } else {
-            pcAttrib = pcFile;
-        }
-        /* Create a string that includes the file name, the file size and the
-         attributes string. */
-        written = snprintf(buf_ptr, remainingSize, "%s%s\n", pcAttrib, fileInfo.fname);
-        buf_ptr += written;
-        remainingSize -= written;
-
-        fr = f_findnext(&dirObj, &fileInfo); /* Search for next item */
-    }
-    f_closedir(&dirObj);
-}
-
-[[noreturn]] void __time_critical_func(picostation::I2S::start)() {
+[[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
     static constexpr size_t c_sectorCacheSize = 50;
 
     // TODO: separate PSNEE, cue parse, and i2s functions
@@ -212,7 +158,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int buf
     uint16_t cdScramblingKey[1176];
 
     int currentSector = -1;
-    g_sectorSending = -1;
+    m_sectorSending = -1;
     int loadedImageIndex = -1;
     int filesinDir = 0;
 
@@ -223,7 +169,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int buf
     // For testing only
     const unsigned int c_userDataSize = 2324;
     uint8_t directoryListing[2324] = {0};
-    readDirectoryToBuffer(directoryListing, "/", c_userDataSize);
+    readDirectoryToBuffer(directoryListing, "/", 0, c_userDataSize);
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
@@ -238,14 +184,14 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int buf
     while (true) {
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            mechcommand::updateMechSens();
+            mechCommand.updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
 
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
 
-        psnee(currentSector);
+        psnee(currentSector, mechCommand);
 
         if (loadedImageIndex != g_imageIndex) {
             g_discImage.load(target_Cues[g_imageIndex]);
@@ -329,7 +275,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int buf
 
         if (!dma_channel_is_busy(dmaChannel)) {
             bufferForDMA = (bufferForDMA + 1) % 2;
-            g_sectorSending = loadedSector[bufferForDMA];
+            m_sectorSending = loadedSector[bufferForDMA];
 
             dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
@@ -347,7 +293,7 @@ void readDirectoryToBuffer(void *buffer, const char *dir, const unsigned int buf
     __builtin_unreachable();
 }
 
-void picostation::I2S::psnee(const int sector) {
+void picostation::I2S::psnee(const int sector, MechCommand &mechCommand) {
     static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
     static constexpr char SCEX_DATA[][44] = {
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
@@ -360,7 +306,7 @@ void picostation::I2S::psnee(const int sector) {
 
     static int psnee_hysteresis = 0;
 
-    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechcommand::getSens(SENS::GFS) && !g_soctEnabled.Load() &&
+    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechCommand.getSens(SENS::GFS) && !mechCommand.getSoct() &&
         g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
         psnee_hysteresis++;
         s_psneeTimer = time_us_64();
@@ -372,7 +318,7 @@ void picostation::I2S::psnee(const int sector) {
         gpio_put(Pin::SCEX_DATA, 0);
         s_psneeTimer = time_us_64();
         while ((time_us_64() - s_psneeTimer) < 90000) {
-            if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
+            if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
                 goto abort_psnee;
             }
         }
@@ -381,7 +327,7 @@ void picostation::I2S::psnee(const int sector) {
                 gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
                 s_psneeTimer = time_us_64();
                 while ((time_us_64() - s_psneeTimer) < 4000) {
-                    if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
+                    if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
                         goto abort_psnee;
                     }
                 }
@@ -389,7 +335,7 @@ void picostation::I2S::psnee(const int sector) {
             gpio_put(Pin::SCEX_DATA, 0);
             s_psneeTimer = time_us_64();
             while ((time_us_64() - s_psneeTimer) < 90000) {
-                if (sector >= PSNEE_SECTOR_LIMIT || g_soctEnabled.Load()) {
+                if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
                     goto abort_psnee;
                 }
             }

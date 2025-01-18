@@ -4,6 +4,12 @@
 
 namespace picostation {
 
+/*class ODE {
+  public:
+  private:
+    MechCommand m_mechCommand;
+};*/
+
 namespace audioControlModes {
 enum : unsigned int {
     NORMAL = 0b00,
@@ -38,8 +44,6 @@ extern bool g_coreReady[2];
 extern unsigned int g_soctOffset;
 extern unsigned int g_subqOffset;
 
-extern pseudoatomic<int> g_sectorSending;
-extern pseudoatomic<bool> g_soctEnabled;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
 extern unsigned int g_audioCtrlMode;

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.24.1)
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(PICO_PLATFORM rp2040)
 
 include(pico_sdk_import.cmake)
 

@@ -7,12 +7,14 @@
 #include "values.h"
 
 namespace picostation {
+class MechCommand;
+
 class DriveMechanics {
   public:
     void moveToNextSector();
     int getSector() { return m_sector.Load(); }
     uint32_t getTrack() { return m_track; }
-    void moveSled();
+    void moveSled(MechCommand &mechCommand);
     void moveTrack(int tracks) { setTrack(m_track + tracks); }
     void setCountTrack(uint32_t countTrack) { m_countTrack = countTrack; }
     void setSectorForTrackUpdate(int sectorForTrackUpdate) { m_sectorForTrackUpdate = sectorForTrackUpdate; }

@@ -18,7 +18,7 @@ void picostation::DriveMechanics::moveToNextSector() {
     }
 }
 
-void picostation::DriveMechanics::moveSled() {
+void picostation::DriveMechanics::moveSled(picostation::MechCommand &mechCommand) {
     if ((time_us_64() - m_sledTimer) > c_MaxTrackMoveTime) {
         m_track = clamp(m_track + m_sledMoveDirection, c_trackMin, c_trackMax);  // +1 or -1
         m_sectorForTrackUpdate = trackToSector(m_track);
@@ -27,7 +27,7 @@ void picostation::DriveMechanics::moveSled() {
         const int tracks_moved = m_track - m_originalTrack;
         if (abs(tracks_moved) >= m_countTrack) {
             m_originalTrack = m_track;
-            mechcommand::setSens(SENS::COUT, !mechcommand::getSens(SENS::COUT));
+            mechCommand.setSens(SENS::COUT, !mechCommand.getSens(SENS::COUT));
         }
 
         m_sledTimer = time_us_64();

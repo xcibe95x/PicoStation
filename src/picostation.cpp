@@ -32,9 +32,9 @@
 // To-do: Implement UART(250 baud) for psnee
 // To-do: Fix seeks that go into the lead-in + track 1 pregap areas, possibly sending bad data over I2S
 
-pseudoatomic<bool> picostation::g_soctEnabled;  // core0: r/w, core1: r
-
-pseudoatomic<int> picostation::g_sectorSending;  // core0: r, core1: w
+// To-do: Make an ODE class and move these to members
+static picostation::I2S m_i2s;
+static picostation::MechCommand m_mechCommand;
 
 bool picostation::g_subqDelay = false;  // core0: r/w
 
@@ -62,6 +62,10 @@ static picostation::PWMSettings pwmLRClock = {
 
 static picostation::PWMSettings pwmMainClock = {.gpio = Pin::CLK, .wrap = 1, .clkdiv = 2, .invert = false, .level = 1};
 
+void interrupt_xlat(unsigned int gpio, uint32_t events) {
+    m_mechCommand.processLatchedCommand();
+}
+
 static void initPWM(picostation::PWMSettings *settings);
 
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
@@ -78,7 +82,7 @@ static void initPWM(picostation::PWMSettings *settings);
     while (true) {
         // Update latching, output SENS
         if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            mechcommand::updateMechSens();
+            m_mechCommand.updateMechSens();
             mutex_exit(&g_mechaconMutex);
         }
 
@@ -93,16 +97,16 @@ static void initPWM(picostation::PWMSettings *settings);
         updatePlaybackSpeed();
 
         // Soct/Sled/seek
-        if (g_soctEnabled.Load()) {
+        if (m_mechCommand.getSoct()) {
             uint32_t interrupts = save_and_disable_interrupts();
             // waiting for RX FIFO entry does not work.
             sleep_us(300);
-            g_soctEnabled = false;
+            m_mechCommand.setSoct(false);
             pio_sm_set_enabled(PIOInstance::SOCT, SM::SOCT, false);
             restore_interrupts(interrupts);
         } else if (!g_driveMechanics.isSledStopped()) {
-            g_driveMechanics.moveSled();
-        } else if (mechcommand::getSens(SENS::GFS)) {
+            g_driveMechanics.moveSled(m_mechCommand);
+        } else if (m_mechCommand.getSens(SENS::GFS)) {
             if (g_subqDelay) {
                 if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) {
                     g_subqDelay = false;
@@ -117,7 +121,7 @@ static void initPWM(picostation::PWMSettings *settings);
                         },
                         NULL, true);
                 }
-            } else if (g_sectorSending.Load() == currentSector) {
+            } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
                 g_subqDelay = true;
                 subqDelayTime = time_us_64();
@@ -127,9 +131,7 @@ static void initPWM(picostation::PWMSettings *settings);
 }
 
 [[noreturn]] void picostation::core1Entry() {
-    I2S g_i2s;
-
-    g_i2s.start();
+    m_i2s.start(m_mechCommand);
     while (1) asm("");
     __builtin_unreachable();
 }
@@ -215,7 +217,7 @@ void picostation::initHW() {
         }
     }
 
-    gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &mechcommand::interrupt_xlat);
+    gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
     DEBUG_PRINT("ON!\n");
 }
@@ -255,7 +257,7 @@ void picostation::maybeReset() {
 
         mechacon_program_init(PIOInstance::MECHACON, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
         g_subqDelay = false;
-        g_soctEnabled = false;
+        m_mechCommand.setSoct(false);
 
         gpio_put(Pin::SCOR, 0);
         gpio_put(Pin::SQSO, 0);
