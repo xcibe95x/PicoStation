@@ -36,7 +36,7 @@ I've taken some pretty drastic design choices with my fork of this project, such
 - psx.dev discord server: https://discord.gg/QByKPpH
 - PCB: https://github.com/paulocode/picostation_pcb
 - FAQ: https://github.com/paulocode/picostation_faq
-- Slow Solder Board (SSB) solder points / checking connection: https://mmmonkey.co.uk/xstation-sony-playstation-install-notes-and-pinout/
+- Slow Solder Board (SSB) solder points / checking connection: https://web.archive.org/web/20230223033837/https://mmmonkey.co.uk/xstation-sony-playstation-install-notes-and-pinout/
 - How to compile (Windows): https://shawnhymel.com/2096/how-to-set-up-raspberry-pi-pico-c-c-toolchain-on-windows-with-vs-code/
 - PCB pinout: <a href="https://i.ibb.co/RvjvDyp/pinout.png"><img src="https://i.ibb.co/mDNDc8C/pinout.png" alt="pinout" border="0"></a>
 - 3D Printable mount (550X) by <a href="https://twitter.com/SadSnifit">@Sadsnifit</a> : https://www.printables.com/fr/model/407224-picostation-mount-for-scph-5502
