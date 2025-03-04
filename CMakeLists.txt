@@ -3,6 +3,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PICO_PLATFORM rp2040)
 
+set(CMAKE_BUILD_TYPE MinSizeRel) # Debug, Release, RelWithDebInfo, MinSizeRel
+
 include(pico_sdk_import.cmake)
 
 project(picostation)
@@ -23,6 +25,7 @@ target_sources(picostation PRIVATE
     src/hw_config.cpp
     src/i2s.cpp
     src/main.cpp
+    src/modchip.cpp
     src/picostation.cpp
     src/subq.cpp
     src/utils.cpp

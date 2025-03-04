@@ -18,6 +18,7 @@
 #include "hw_config.h"
 #include "logging.h"
 #include "main.pio.h"
+#include "modchip.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
 #include "rtc.h"
@@ -31,21 +32,16 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-#if FF_USE_LFN
-const size_t c_fileNameLength = FF_LFN_BUF;
-#else
-const size_t c_fileNameLength = 12 + 1;
-#endif
-static DIR s_dirObj;
-static int s_fileCount = -1;
-char cwdbuf[c_fileNameLength] = "/";
+const size_t c_fileNameLength = 255;
 
-const TCHAR target_Cues[NUM_IMAGES][11] = {
+const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
     "UNIROM.cue",
 };
-const int g_imageIndex = 0;  // To-do: Implement a console side menu to select the cue file
+volatile int g_imageIndex = 0;  // To-do: Implement a console side menu to select the cue file
 
 static uint64_t s_psneeTimer;
+
+static picostation::ModChip s_modchip;
 
 int getNumberofFileEntries(const char *dir) {
     int count = 0;
@@ -105,7 +101,7 @@ void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
 
     for (size_t i = 6; i < 1176; i++) {
         char upper = key & 0xFF;
-        for (int j = 0; j < 8; j++) {
+        for (size_t j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
             key = (bit | key) >> 1;
         }
@@ -114,7 +110,7 @@ void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
 
         cdScramblingKey[i] = (lower << 8) | upper;
 
-        for (int j = 0; j < 8; j++) {
+        for (size_t j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
             key = (bit | key) >> 1;
         }
@@ -166,9 +162,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     mountSDCard();
 
-    // For testing only
     const unsigned int c_userDataSize = 2324;
-    uint8_t directoryListing[2324] = {0};
+    uint8_t directoryListing[c_userDataSize] = {0};
     readDirectoryToBuffer(directoryListing, "/", 0, c_userDataSize);
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
@@ -179,7 +174,9 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         tight_loop_contents();
     }
 
-    s_psneeTimer = time_us_64();
+    //s_psneeTimer = time_us_64();
+    s_modchip.init();
+
 
     while (true) {
         // Update latching, output SENS
@@ -191,8 +188,10 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
 
-        psnee(currentSector, mechCommand);
+        //psnee(currentSector, mechCommand);
+        s_modchip.injectLicenseString(currentSector, mechCommand);
 
+        // Load the disc image if it has changed
         if (loadedImageIndex != g_imageIndex) {
             g_discImage.load(target_Cues[g_imageIndex]);
             loadedImageIndex = g_imageIndex;
@@ -208,6 +207,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
             memset(pioSamples, 0, sizeof(pioSamples));
         }
 
+        // Data sent via DMA, load the next sector
         if (bufferForDMA != bufferForSDRead) {
             uint64_t sector_change_timer = time_us_64();
             while ((time_us_64() - sector_change_timer) < 100) {
@@ -229,19 +229,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
             }
 
             if (cache_hit == -1) {
-                const FileListingStates fileListingState = g_fileListingState.Load();
-
-                uint8_t *buffer = reinterpret_cast<uint8_t *>(cdSamples[roundRobinCacheIndex]);
-
-                switch (fileListingState) {
-                    case FileListingStates::GETDIRECTORY:
-                        g_discImage.buildSector(currentSector - c_leadIn, buffer, directoryListing);
-                        break;
-
-                    case FileListingStates::IDLE:
-                        g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
-                        break;
-                }
+                g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
 
                 cachedSectors[roundRobinCacheIndex] = currentSector;
                 cache_hit = roundRobinCacheIndex;
@@ -273,6 +261,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
             bufferForSDRead = (bufferForSDRead + 1) % 2;
         }
 
+        // Start the next transfer if the DMA channel is not busy
         if (!dma_channel_is_busy(dmaChannel)) {
             bufferForDMA = (bufferForDMA + 1) % 2;
             m_sectorSending = loadedSector[bufferForDMA];
@@ -294,56 +283,99 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 }
 
 void picostation::I2S::psnee(const int sector, MechCommand &mechCommand) {
-    static constexpr int PSNEE_SECTOR_LIMIT = c_leadIn;
-    static constexpr char SCEX_DATA[][44] = {
+    // License strings, this is just UART, inverted, at 250 baud
+    // To-do: review the timing and consider switching to the UART peripheral
+    static constexpr char SCEX_DATA[3][44] = {
+        // SCEE
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
          1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
+
+        // SCEA
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
          1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
+
+        // SCEI
         {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
          1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
     };
 
+    // PSNEE conditions:
+    // Laser in the lead-in/wobble groove area
+    // Disc contains data
+    // SOCT disabled
+    // GFS set
+    // 13.333ms elapsed
+    const bool inWobbleGroove = (sector > 0) && (sector < c_leadIn);
+    const bool isDataDisc = g_discImage.hasData();
+    const bool soctDisabled = !mechCommand.getSoct();
+    const bool gfsSet = mechCommand.getSens(SENS::GFS);
+    const uint64_t timeElapsed = time_us_64() - s_psneeTimer;
+
     static int psnee_hysteresis = 0;
 
-    if (sector > 0 && sector < PSNEE_SECTOR_LIMIT && mechCommand.getSens(SENS::GFS) && !mechCommand.getSoct() &&
-        g_discImage.hasData() && ((time_us_64() - s_psneeTimer) > 13333)) {
-        psnee_hysteresis++;
-        s_psneeTimer = time_us_64();
-    }
+    // Check for conditions to trigger PSNEE, increase hysteresis counter, and reset timer for next state
+    if (inWobbleGroove && gfsSet && soctDisabled && isDataDisc) {
+        if (timeElapsed > 13333) {
+            psnee_hysteresis++;
+            s_psneeTimer = time_us_64();
 
-    if (psnee_hysteresis > 100) {
-        psnee_hysteresis = 0;
-        DEBUG_PRINT("+SCEX\n");
-        gpio_put(Pin::SCEX_DATA, 0);
-        s_psneeTimer = time_us_64();
-        while ((time_us_64() - s_psneeTimer) < 90000) {
-            if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
-                goto abort_psnee;
-            }
-        }
-        for (int i = 0; i < 6; i++) {
-            for (int j = 0; j < 44; j++) {
-                gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
+            // if hyteresis counter is over 100, begin psnee loop
+            if (psnee_hysteresis > 100) {
+                psnee_hysteresis = 0;
+                DEBUG_PRINT("+SCEX\n");
+                gpio_put(Pin::SCEX_DATA, 0);
                 s_psneeTimer = time_us_64();
-                while ((time_us_64() - s_psneeTimer) < 4000) {
-                    if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
+
+                // Returns false if the PSNEE loop should be aborted, true if the timer has elapsed
+                auto psneeWaitBlockingWithAbort = [&mechCommand](const uint64_t waitTime) {
+                    while ((time_us_64() - s_psneeTimer) < waitTime) {
+                        const int sector = g_driveMechanics.getSector();
+                        const bool inWobbleGroove = (sector > 0) && (sector < c_leadIn);
+                        const bool soctDisabled = !mechCommand.getSoct();
+                        const bool gfsSet = mechCommand.getSens(SENS::GFS);
+
+                        if (!soctDisabled || !gfsSet || !inWobbleGroove) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                };
+
+                // Wait 90ms
+                if (!psneeWaitBlockingWithAbort(90000U)) {
+                    goto abort_psnee;
+                }
+
+                // Send the 3 license strings, twice each
+                for (int i = 0; i < 6; i++) {
+                    for (int j = 0; j < 44; j++) {
+                        gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
+                        s_psneeTimer = time_us_64();
+
+                        // Wait 4ms between bits
+                        if (!psneeWaitBlockingWithAbort(4000U)) {
+                            goto abort_psnee;
+                        }
+                    }
+
+                    gpio_put(Pin::SCEX_DATA, 0);
+                    s_psneeTimer = time_us_64();
+
+                    // Wait 90ms between strings
+                    if (!psneeWaitBlockingWithAbort(90000U)) {
                         goto abort_psnee;
                     }
                 }
-            }
-            gpio_put(Pin::SCEX_DATA, 0);
-            s_psneeTimer = time_us_64();
-            while ((time_us_64() - s_psneeTimer) < 90000) {
-                if (sector >= PSNEE_SECTOR_LIMIT || mechCommand.getSoct()) {
-                    goto abort_psnee;
-                }
+
+            abort_psnee:
+                gpio_put(Pin::SCEX_DATA, 0);
+                s_psneeTimer = time_us_64();
+                DEBUG_PRINT("-SCEX\n");
             }
         }
-
-    abort_psnee:
-        gpio_put(Pin::SCEX_DATA, 0);
+    } else {
+        psnee_hysteresis = 0;
         s_psneeTimer = time_us_64();
-        DEBUG_PRINT("-SCEX\n");
     }
 }

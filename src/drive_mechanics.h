@@ -13,7 +13,7 @@ class DriveMechanics {
   public:
     void moveToNextSector();
     int getSector() { return m_sector.Load(); }
-    uint32_t getTrack() { return m_track; }
+    uint32_t getTrack() const { return m_track; }
     void moveSled(MechCommand &mechCommand);
     void moveTrack(int tracks) { setTrack(m_track + tracks); }
     void setCountTrack(uint32_t countTrack) { m_countTrack = countTrack; }

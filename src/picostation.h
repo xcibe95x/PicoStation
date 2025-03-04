@@ -27,6 +27,7 @@ enum class FileListingStates {
 };
 
 extern pseudoatomic<FileListingStates> g_fileListingState;
+extern pseudoatomic<uint32_t> g_fileArg;
 
 struct PWMSettings {
     const unsigned int gpio;

@@ -10,8 +10,8 @@ namespace picostation {
 
 class MechCommand {
   public:
-    bool getSens(const size_t what);
-    void setSens(const size_t, const bool new_value);
+    bool getSens(const size_t what) const;
+    void setSens(const size_t what, const bool new_value);
     bool getSoct();
     void setSoct(const bool new_value);
     void processLatchedCommand();
@@ -55,7 +55,7 @@ class MechCommand {
     int m_jumpTrack = 0;
     uint32_t m_latched = 0;  // Command latch
 
-    size_t m_currentSens;
+    size_t m_currentSens = 0;
     bool m_sensData[16] = {
         0,  // $0X - FZC
         0,  // $1X - AS

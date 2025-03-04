@@ -49,6 +49,7 @@ unsigned int picostation::g_audioCtrlMode = audioControlModes::NORMAL;
 // volatile int32_t picostation::g_audioLevel = 0;
 
 pseudoatomic<picostation::FileListingStates> picostation::g_fileListingState;
+pseudoatomic<uint32_t> picostation::g_fileArg;
 
 static unsigned int s_mechachonOffset;
 unsigned int picostation::g_soctOffset;
@@ -62,9 +63,7 @@ static picostation::PWMSettings pwmLRClock = {
 
 static picostation::PWMSettings pwmMainClock = {.gpio = Pin::CLK, .wrap = 1, .clkdiv = 2, .invert = false, .level = 1};
 
-void interrupt_xlat(unsigned int gpio, uint32_t events) {
-    m_mechCommand.processLatchedCommand();
-}
+static void interrupt_xlat(unsigned int gpio, uint32_t events) { m_mechCommand.processLatchedCommand(); }
 
 static void initPWM(picostation::PWMSettings *settings);
 
@@ -162,8 +161,8 @@ void picostation::initHW() {
     gpio_set_dir(Pin::XLAT, GPIO_IN);
     gpio_set_dir(Pin::SQCK, GPIO_IN);
     gpio_set_dir(Pin::LMTSW, GPIO_OUT);
-    gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
-    gpio_put(Pin::SCEX_DATA, 1);
+    //gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
+    //gpio_put(Pin::SCEX_DATA, 1);
     gpio_set_dir(Pin::DOOR, GPIO_IN);
     gpio_set_dir(Pin::RESET, GPIO_IN);
     gpio_set_dir(Pin::SENS, GPIO_OUT);
@@ -235,9 +234,12 @@ static void initPWM(picostation::PWMSettings *settings) {
 }
 
 void picostation::updatePlaybackSpeed() {
+    static constexpr unsigned int c_clockDivNormal = 4;
+    static constexpr unsigned int c_clockDivDouble = 2;
+
     if (s_currentPlaybackSpeed != g_targetPlaybackSpeed) {
         s_currentPlaybackSpeed = g_targetPlaybackSpeed;
-        const unsigned int clock_div = (s_currentPlaybackSpeed == 1) ? 4 : 2;
+        const unsigned int clock_div = (s_currentPlaybackSpeed == 1) ? c_clockDivNormal : c_clockDivDouble;
         pwm_set_mask_enabled(0);
         pwm_config_set_clkdiv_int(&pwmDataClock.config, clock_div);
         pwm_config_set_clkdiv_int(&pwmLRClock.config, clock_div);

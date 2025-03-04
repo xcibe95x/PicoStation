@@ -19,6 +19,8 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
+extern volatile int g_imageIndex;
+
 inline void picostation::MechCommand::audioControl(const uint32_t latched) {
     const uint32_t pct2_bit = (1 << 14);
     const uint32_t pct1_bit = (1 << 15);
@@ -132,6 +134,9 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
             break;
         case 0x1:
             g_fileListingState = FileListingStates::GETDIRECTORY;
+            break;
+        case 0x2:
+            g_imageIndex = arg;
             break;
     }
 }
@@ -295,7 +300,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
     }
 }
 
-bool __time_critical_func(picostation::MechCommand::getSens)(const size_t what) { return m_sensData[what]; }
+bool __time_critical_func(picostation::MechCommand::getSens)(const size_t what) const { return m_sensData[what]; }
 
 void __time_critical_func(picostation::MechCommand::setSens)(const size_t what, const bool new_value) {
     m_sensData[what] = new_value;
