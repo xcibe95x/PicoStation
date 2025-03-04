@@ -1,11 +1,13 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hardware/pio.h"
-#include "pico/stdlib.h"
 
 // GPIO pinouts
 namespace Pin {
-enum : uint {
+enum : unsigned int {
     XLAT = 0,
     SQCK = 1,
     LMTSW = 2,
@@ -22,13 +24,23 @@ enum : uint {
     CMD_DATA = 26,
     CMD_CK = 27
 };
-constexpr uint allPins[] = {XLAT, SQCK, LMTSW, SCEX_DATA, DOOR, RESET,    SENS,  DA15,
-                            DA16, LRCK, SCOR,  SQSO,      CLK,  CMD_DATA, CMD_CK};
+constexpr unsigned int allPins[] = {XLAT, SQCK, LMTSW, SCEX_DATA, DOOR, RESET,    SENS,  DA15,
+                                    DA16, LRCK, SCOR,  SQSO,      CLK,  CMD_DATA, CMD_CK};
 };  // namespace Pin
 // C2PO, WFCK is always GND
 
 namespace SENS {
-enum : uint { FZC = 0x0, AS = 0x1, TZC = 0x2, XBUSY = 0x4, FOK = 0x5, GFS = 0xa, COMP = 0xb, COUT = 0xc, OV64 = 0xe };
+enum : unsigned int {
+    FZC = 0x0,
+    AS = 0x1,
+    TZC = 0x2,
+    XBUSY = 0x4,
+    FOK = 0x5,
+    GFS = 0xa,
+    COMP = 0xb,
+    COUT = 0xc,
+    OV64 = 0xe
+};
 }
 
 namespace SledMove {
@@ -44,10 +56,10 @@ PIO const SUBQ = pio0;
 
 namespace SM {
 // PIO0
-constexpr uint I2S_DATA = 0;
-constexpr uint MECHACON = 1;
-constexpr uint SOCT = 2;
-constexpr uint SUBQ = 3;
+constexpr unsigned int I2S_DATA = 0;
+constexpr unsigned int MECHACON = 1;
+constexpr unsigned int SOCT = 2;
+constexpr unsigned int SUBQ = 3;
 }  // namespace SM
 
 constexpr int NUM_IMAGES = 1;

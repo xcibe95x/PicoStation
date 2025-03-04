@@ -1,17 +1,18 @@
 #include "disc_image.h"
 
 #include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "../third_party/posix_file.h"
 #include "f_util.h"
 #include "ff.h"
 #include "logging.h"
-#include "pico/stdlib.h"
 #include "picostation.h"
 #include "subq.h"
+#include "third_party/iec-60908b/edcecc.h"
+#include "third_party/posix_file.h"
 #include "utils.h"
 #include "values.h"
 
@@ -26,6 +27,19 @@ struct MSF {
     int ss;
     int ff;
 };
+
+namespace Submode {
+enum : uint8_t {
+    EndOfRecord = 1 << 0,
+    Video = 1 << 1,
+    Audio = 1 << 2,
+    Data = 1 << 3,
+    Trigger = 1 << 4,
+    Form = 1 << 5,
+    RealTime = 1 << 6,
+    EndOfFile = 1 << 7,
+};
+}
 
 picostation::DiscImage picostation::g_discImage;
 
@@ -78,6 +92,35 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
     } else {
         parentPath[0] = 0;
     }
+}
+
+void picostation::DiscImage::buildSector(const int sector, uint8_t *buffer, uint8_t *userData) {
+    // Sync - 12 bytes
+    buffer[0] = 0;
+    memset(buffer + 1, 0xFF, 10);
+    buffer[11] = 0;
+
+    // Header - 4 bytes
+    const MSF msf = sectorToMSF(sector);
+    buffer[12] = toBCD(msf.mm);  // M Minutes
+    buffer[13] = toBCD(msf.ss);  // S Seconds
+    buffer[14] = toBCD(msf.ff);  // F Frame/Sectors
+    buffer[15] = 0x02;           // Mode = 2
+
+    // Sub-Header - 8 bytes (Green book)
+    // buffer[16] = 0;                // File number
+    // buffer[17] = 0;                // Channel number
+    buffer[18] = (Submode::Form);  // Submode = Form 2, 2324 bytes of user data
+    // buffer[19] = 0;                // Coding information
+    // buffer[20] = 0;                // File number
+    // buffer[21] = 0;                // Channel number
+    // buffer[22] = 0;                // Submode
+    // buffer[23] = 0;                // Coding information
+
+    memcpy(buffer + 24, userData, 2324);
+
+    // EDC/ECC - 4 bytes
+    compute_edcecc(buffer);
 }
 
 picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
@@ -152,7 +195,7 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
         if (sector - c_leadIn < c_preGap) {
             m_currentLogicalTrack = 1;
         } else {
-            for (int i = 1; i < m_cueDisc.trackCount + 2; i++) {  // + 2 for lead in & lead out
+            for (size_t i = 1; i < m_cueDisc.trackCount + 2; i++) {  // + 2 for lead in & lead out
                 if (m_cueDisc.tracks[i + 1].indices[0] > sector - c_leadIn - c_preGap) {
                     m_currentLogicalTrack = i;
                     break;
@@ -195,7 +238,7 @@ picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
         case audioControlModes::NORMAL:
         case audioControlModes::ALTNORMAL:
         default:
-            for (int i = 0; i < 10; i++) {
+            for (size_t i = 0; i < 10; i++) {
                 subqdata.crc = (subqdata.crc << 8) ^ crc16_lut[((subqdata.crc >> 8) ^ subqdata.raw[i]) & 0xFF];
             }
             subqdata.crc = (subqdata.crc << 8) | (subqdata.crc >> 8);  // swap endianness
@@ -274,7 +317,7 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
 
     m_hasData = false;
     DEBUG_PRINT("Track\tStart\tLength\tPregap\n");
-    for (int i = 0; i <= m_cueDisc.trackCount + 1; i++) {
+    for (size_t i = 0; i <= m_cueDisc.trackCount + 1; i++) {
         if (m_cueDisc.tracks[i].trackType == CueTrackType::TRACK_TYPE_DATA) {
             m_hasData = true;
         }
@@ -289,10 +332,10 @@ void picostation::DiscImage::readData(void *buffer, const int sector) {
     FRESULT fr;
     UINT br = 0;
 
-    for (int i = 1; i <= m_cueDisc.trackCount + 1; i++) {
+    for (size_t i = 1; i <= m_cueDisc.trackCount + 1; i++) {
         if (sector < m_cueDisc.tracks[i + 1].indices[0]) {
             if (m_cueDisc.tracks[i].file->opaque) {
-                int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
+                const int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
                 if (seekBytes >= 0) {
                     fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
                     if (FR_OK != fr) {

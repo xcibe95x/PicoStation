@@ -1,5 +1,6 @@
 #include "subq.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -7,7 +8,6 @@
 #include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
-#include "pico/stdlib.h"
 #include "picostation.h"
 #include "utils.h"
 #include "values.h"
@@ -19,7 +19,7 @@
 #endif
 
 void picostation::SubQ::printf_subq(const uint8_t *data) {
-    for (int i = 0; i < 12; i++) {
+    for (size_t i = 0; i < 12; i++) {
         DEBUG_PRINT("%02X ", data[i]);
     }
 }

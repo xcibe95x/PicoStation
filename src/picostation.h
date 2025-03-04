@@ -1,11 +1,17 @@
 #include "hardware/pwm.h"
 #include "pico/multicore.h"
-#include "third_party/RP2040_Pseudo_Atomic/Inc/RP2040Atomic.hpp"
+#include "pseudo_atomics.h"
 
 namespace picostation {
 
+/*class ODE {
+  public:
+  private:
+    MechCommand m_mechCommand;
+};*/
+
 namespace audioControlModes {
-enum : uint {
+enum : unsigned int {
     NORMAL = 0b00,
     LEVELMETER = 0b01,
     PEAKMETER = 0b10,
@@ -13,12 +19,22 @@ enum : uint {
 };
 }
 
+enum class FileListingStates {
+    IDLE,
+    GETTINGDIRFILECOUNT,
+    DIRREADY,
+    GETDIRECTORY,
+};
+
+extern pseudoatomic<FileListingStates> g_fileListingState;
+extern pseudoatomic<uint32_t> g_fileArg;
+
 struct PWMSettings {
-    const uint gpio;
-    uint sliceNum;
+    const unsigned int gpio;
+    unsigned int sliceNum;
     pwm_config config;
     const uint16_t wrap;
-    const uint clkdiv;
+    const unsigned int clkdiv;
     const bool invert;
     const uint16_t level;
 };
@@ -26,21 +42,12 @@ struct PWMSettings {
 extern mutex_t g_mechaconMutex;
 extern bool g_coreReady[2];
 
-extern uint g_soctOffset;
-extern uint g_subqOffset;
+extern unsigned int g_soctOffset;
+extern unsigned int g_subqOffset;
 
-extern uint g_countTrack;
-extern int g_track;
-extern int g_originalTrack;
-extern patom::types::patomic_int g_sector;
-extern int g_sectorForTrackUpdate;
-extern patom::types::patomic_int g_sectorSending;
-extern int g_sledMoveDirection;
-extern uint64_t g_sledTimer;
-extern patom::types::patomic_bool g_soctEnabled;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
-extern uint g_audioCtrlMode;
+extern unsigned int g_audioCtrlMode;
 // extern volatile int32_t g_audioPeak;
 // extern volatile int32_t g_audioLevel;
 
