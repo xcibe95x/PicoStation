@@ -18,7 +18,7 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern volatile int g_imageIndex;
+extern pseudoatomic<int> g_imageIndex;
 
 inline void picostation::MechCommand::audioControl(const uint32_t latched) {
     const uint32_t pct2_bit = (1 << 14);

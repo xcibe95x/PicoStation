@@ -21,6 +21,7 @@
 #include "modchip.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
+#include "pseudo_atomics.h"
 #include "rtc.h"
 #include "subq.h"
 #include "values.h"
@@ -36,7 +37,7 @@ const size_t c_fileNameLength = 255;
 const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
     "UNIROM.cue",
 };
-volatile int g_imageIndex = 0;  // To-do: Implement a console side menu to select the cue file
+pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
 static uint64_t s_psneeTimer;
 
@@ -157,6 +158,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     int loadedImageIndex = -1;
     int filesinDir = 0;
 
+    g_imageIndex = 0;
+
     generateScramblingKey(cdScramblingKey);
 
     mountSDCard();
@@ -168,14 +171,13 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
     g_coreReady[1] = true;   // Core 1 is ready
-    while (!g_coreReady[0])  // Wait for Core 0 to be ready
+    while (!g_coreReady[0].Load())  // Wait for Core 0 to be ready
     {
         tight_loop_contents();
     }
 
-    //s_psneeTimer = time_us_64();
+    // s_psneeTimer = time_us_64();
     s_modchip.init();
-
 
     while (true) {
         // Update latching, output SENS
@@ -187,13 +189,14 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
 
-        //psnee(currentSector, mechCommand);
+        // psnee(currentSector, mechCommand);
         s_modchip.injectLicenseString(currentSector, mechCommand);
 
         // Load the disc image if it has changed
-        if (loadedImageIndex != g_imageIndex) {
-            g_discImage.load(target_Cues[g_imageIndex]);
-            loadedImageIndex = g_imageIndex;
+        const int imageIndex = g_imageIndex.Load();
+        if (loadedImageIndex != imageIndex) {
+            g_discImage.load(target_Cues[g_imageIndex.Load()]);
+            loadedImageIndex = imageIndex;
 
             // Reset cache and loaded sectors
             loadedSector[0] = -1;

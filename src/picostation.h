@@ -40,7 +40,7 @@ struct PWMSettings {
 };
 
 extern mutex_t g_mechaconMutex;
-extern bool g_coreReady[2];
+extern pseudoatomic<bool> g_coreReady[2];
 
 extern unsigned int g_soctOffset;
 extern unsigned int g_subqOffset;
@@ -48,8 +48,8 @@ extern unsigned int g_subqOffset;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
 extern unsigned int g_audioCtrlMode;
-// extern volatile int32_t g_audioPeak;
-// extern volatile int32_t g_audioLevel;
+// extern pseudoatomic<int32_t> g_audioPeak;
+// extern pseudoatomic<int32_t> g_audioLevel;
 
 [[noreturn]] void core0Entry();  // Reset, playback speed, Sled, soct, subq
 [[noreturn]] void core1Entry();  // I2S, sdcard, psnee
