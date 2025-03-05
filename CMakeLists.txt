@@ -16,6 +16,7 @@ add_executable(picostation)
 target_compile_definitions(
     picostation PUBLIC
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
+    MAXINDEX=2
 )
 
 target_sources(picostation PRIVATE
