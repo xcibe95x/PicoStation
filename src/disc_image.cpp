@@ -13,7 +13,6 @@
 #include "subq.h"
 #include "third_party/iec-60908b/edcecc.h"
 #include "third_party/posix_file.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_CUE

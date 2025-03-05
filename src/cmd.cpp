@@ -10,7 +10,6 @@
 #include "main.pio.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_CMD
@@ -295,7 +294,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
                 break;*/
 
         case TopLevelCommands::CUSTOM:  // picostation
-            customCommand(latched);
+            //customCommand(latched);
             break;
     }
 }

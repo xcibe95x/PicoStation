@@ -2,8 +2,6 @@
 
 #include <math.h>
 
-int clamp(const int value, const int min, const int max);
-
 // For calculating sector at a position in the spiral track/groove
 inline int trackToSector(const int track) { return pow(track, 2) * 0.00031499 + track * 9.357516535; }
 

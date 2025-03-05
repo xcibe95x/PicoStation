@@ -15,7 +15,6 @@
 #include "pico/stdlib.h"
 #include "pseudo_atomics.h"
 #include "subq.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_MAIN

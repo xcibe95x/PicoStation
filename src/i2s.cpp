@@ -23,7 +23,6 @@
 #include "picostation.h"
 #include "rtc.h"
 #include "subq.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_I2S
@@ -43,7 +42,7 @@ static uint64_t s_psneeTimer;
 
 static picostation::ModChip s_modchip;
 
-int getNumberofFileEntries(const char *dir) {
+/*int getNumberofFileEntries(const char *dir) {
     int count = 0;
     DIR dirObj;
     FILINFO fileInfo;
@@ -67,7 +66,7 @@ void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, 
     char *buf_ptr = (char *)buffer;
     int remainingSize = bufferSize;
 
-    res = f_opendir(&dir, path); /* Open the directory */
+    res = f_opendir(&dir, path); // Open the directory
     if (res == FR_OK) {
         if (offset > 0) {
             for (int i = 0; i < offset; i++) {
@@ -79,10 +78,10 @@ void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, 
         }
         if (res == FR_OK) {
             for (;;) {
-                res = f_readdir(&dir, &fno); /* Read a directory item */
+                res = f_readdir(&dir, &fno); // Read a directory item
                 if (res != FR_OK || fno.fname[0] == 0 || strlen(fno.fname) > remainingSize) {
                     break;
-                } /* Error or end of dir */
+                } // Error or end of dir
                 const int written = snprintf(buf_ptr, remainingSize, "%s\n", fno.fname);
                 buf_ptr += written;
                 remainingSize -= written;
@@ -92,7 +91,7 @@ void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, 
     } else {
         DEBUG_PRINT("Failed to open \"%s\". (%u)\n", path, res);
     }
-}
+}*/
 
 void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
@@ -162,9 +161,9 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     mountSDCard();
 
-    const unsigned int c_userDataSize = 2324;
+    /*const unsigned int c_userDataSize = 2324;
     uint8_t directoryListing[c_userDataSize] = {0};
-    readDirectoryToBuffer(directoryListing, "/", 0, c_userDataSize);
+    readDirectoryToBuffer(directoryListing, "/", 0, c_userDataSize);*/
 
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 

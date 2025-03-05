@@ -9,7 +9,6 @@
 #include "logging.h"
 #include "main.pio.h"
 #include "picostation.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_SUBQ
