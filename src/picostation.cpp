@@ -23,12 +23,9 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-// To-do: Establish thread safety: identify variables that are shared between cores, wrap them in mutexes or spin locks,
-// maybe in a class?
 // To-do: Implement lid switch behavior
 // To-do: Implement a console side menu to select the cue file
 // To-do: Implement level meter mode to command $AX - AudioCTRL
-// To-do: Implement UART(250 baud) for psnee
 // To-do: Fix seeks that go into the lead-in + track 1 pregap areas, possibly sending bad data over I2S
 
 // To-do: Make an ODE class and move these to members

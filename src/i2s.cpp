@@ -39,61 +39,6 @@ const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
 };
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
-static uint64_t s_psneeTimer;
-
-static picostation::ModChip s_modchip;
-
-/*int getNumberofFileEntries(const char *dir) {
-    int count = 0;
-    DIR dirObj;
-    FILINFO fileInfo;
-    FRESULT fr = f_opendir(&dirObj, dir);
-    if (FR_OK != fr) {
-        DEBUG_PRINT("f_opendir error: %s (%d)\n", FRESULT_str(fr), fr);
-        return -1;
-    }
-    while (f_readdir(&dirObj, &fileInfo) == FR_OK && fileInfo.fname[0]) {
-        count++;
-    }
-    f_closedir(&dirObj);
-    return count;
-}
-
-void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, const unsigned int bufferSize = 2324) {
-    FRESULT res;
-    DIR dir;
-    FILINFO fno;
-
-    char *buf_ptr = (char *)buffer;
-    int remainingSize = bufferSize;
-
-    res = f_opendir(&dir, path); // Open the directory
-    if (res == FR_OK) {
-        if (offset > 0) {
-            for (int i = 0; i < offset; i++) {
-                res = f_readdir(&dir, &fno);
-                if (res != FR_OK || fno.fname[0] == 0) {
-                    break;
-                }
-            }
-        }
-        if (res == FR_OK) {
-            for (;;) {
-                res = f_readdir(&dir, &fno); // Read a directory item
-                if (res != FR_OK || fno.fname[0] == 0 || strlen(fno.fname) > remainingSize) {
-                    break;
-                } // Error or end of dir
-                const int written = snprintf(buf_ptr, remainingSize, "%s\n", fno.fname);
-                buf_ptr += written;
-                remainingSize -= written;
-            }
-        }
-        f_closedir(&dir);
-    } else {
-        DEBUG_PRINT("Failed to open \"%s\". (%u)\n", path, res);
-    }
-}*/
-
 void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
     int key = 1;
 
@@ -141,7 +86,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 [[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
     static constexpr size_t c_sectorCacheSize = 50;
 
-    // TODO: separate PSNEE, cue parse, and i2s functions
+    picostation::ModChip modChip;
+
     uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0};
     int bufferForDMA = 1;
     int bufferForSDRead = 0;
@@ -164,20 +110,15 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     mountSDCard();
 
-    /*const unsigned int c_userDataSize = 2324;
-    uint8_t directoryListing[c_userDataSize] = {0};
-    readDirectoryToBuffer(directoryListing, "/", 0, c_userDataSize);*/
-
     int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
 
-    g_coreReady[1] = true;   // Core 1 is ready
+    g_coreReady[1] = true;          // Core 1 is ready
     while (!g_coreReady[0].Load())  // Wait for Core 0 to be ready
     {
         tight_loop_contents();
     }
 
-    // s_psneeTimer = time_us_64();
-    s_modchip.init();
+    modChip.init();
 
     while (true) {
         // Update latching, output SENS
@@ -189,8 +130,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
 
-        // psnee(currentSector, mechCommand);
-        s_modchip.injectLicenseString(currentSector, mechCommand);
+        modChip.injectLicenseString(currentSector, mechCommand);
 
         // Load the disc image if it has changed
         const int imageIndex = g_imageIndex.Load();
@@ -282,102 +222,4 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         }
     }
     __builtin_unreachable();
-}
-
-void picostation::I2S::psnee(const int sector, MechCommand &mechCommand) {
-    // License strings, this is just UART, inverted, at 250 baud
-    // To-do: review the timing and consider switching to the UART peripheral
-    static constexpr char SCEX_DATA[3][44] = {
-        // SCEE
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
-         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0},
-
-        // SCEA
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
-         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0},
-
-        // SCEI
-        {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0,
-         1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0},
-    };
-
-    // PSNEE conditions:
-    // Laser in the lead-in/wobble groove area
-    // Disc contains data
-    // SOCT disabled
-    // GFS set
-    // 13.333ms elapsed
-    const bool inWobbleGroove = (sector > 0) && (sector < c_leadIn);
-    const bool isDataDisc = g_discImage.hasData();
-    const bool soctDisabled = !mechCommand.getSoct();
-    const bool gfsSet = mechCommand.getSens(SENS::GFS);
-    const uint64_t timeElapsed = time_us_64() - s_psneeTimer;
-
-    static int psnee_hysteresis = 0;
-
-    // Check for conditions to trigger PSNEE, increase hysteresis counter, and reset timer for next state
-    if (inWobbleGroove && gfsSet && soctDisabled && isDataDisc) {
-        if (timeElapsed > 13333) {
-            psnee_hysteresis++;
-            s_psneeTimer = time_us_64();
-
-            // if hyteresis counter is over 100, begin psnee loop
-            if (psnee_hysteresis > 100) {
-                psnee_hysteresis = 0;
-                DEBUG_PRINT("+SCEX\n");
-                gpio_put(Pin::SCEX_DATA, 0);
-                s_psneeTimer = time_us_64();
-
-                // Returns false if the PSNEE loop should be aborted, true if the timer has elapsed
-                auto psneeWaitBlockingWithAbort = [&mechCommand](const uint64_t waitTime) {
-                    while ((time_us_64() - s_psneeTimer) < waitTime) {
-                        const int sector = g_driveMechanics.getSector();
-                        const bool inWobbleGroove = (sector > 0) && (sector < c_leadIn);
-                        const bool soctDisabled = !mechCommand.getSoct();
-                        const bool gfsSet = mechCommand.getSens(SENS::GFS);
-
-                        if (!soctDisabled || !gfsSet || !inWobbleGroove) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                };
-
-                // Wait 90ms
-                if (!psneeWaitBlockingWithAbort(90000U)) {
-                    goto abort_psnee;
-                }
-
-                // Send the 3 license strings, twice each
-                for (int i = 0; i < 6; i++) {
-                    for (int j = 0; j < 44; j++) {
-                        gpio_put(Pin::SCEX_DATA, SCEX_DATA[i % 3][j]);
-                        s_psneeTimer = time_us_64();
-
-                        // Wait 4ms between bits
-                        if (!psneeWaitBlockingWithAbort(4000U)) {
-                            goto abort_psnee;
-                        }
-                    }
-
-                    gpio_put(Pin::SCEX_DATA, 0);
-                    s_psneeTimer = time_us_64();
-
-                    // Wait 90ms between strings
-                    if (!psneeWaitBlockingWithAbort(90000U)) {
-                        goto abort_psnee;
-                    }
-                }
-
-            abort_psnee:
-                gpio_put(Pin::SCEX_DATA, 0);
-                s_psneeTimer = time_us_64();
-                DEBUG_PRINT("-SCEX\n");
-            }
-        }
-    } else {
-        psnee_hysteresis = 0;
-        s_psneeTimer = time_us_64();
-    }
 }

@@ -247,7 +247,6 @@ inline void picostation::MechCommand::spindleControl(const uint32_t latched) {
     }*/
 }
 
-// void __time_critical_func(picostation::MechCommand::interrupt_xlat)(unsigned int gpio, uint32_t events) {
 void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
     const uint32_t latched = m_latched;
     const uint32_t command = (latched & 0xF00000) >> 20;
