@@ -20,6 +20,7 @@ I've taken some pretty drastic design choices with my fork of this project, such
 - see <a href="https://github.com/paulocode/picostation/wiki/How-to">How-to</a> wiki page
 
 ### Notes
+- Please make sure your SD card is formatted as exFAT.
 
 
 ### To-do
