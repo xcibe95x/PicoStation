@@ -74,6 +74,7 @@ loop_dword:
     
     push block
     
+    set pins 1
 hang:
     jmp hang
 
@@ -103,7 +104,6 @@ static inline void subq_program_init(PIO pio, uint8_t sm, uint8_t offset,
     wait 0 pin 0
     out pins, 1
 .wrap
-
     
 % c-sdk {
 static inline void i2s_data_program_init(PIO pio, uint8_t sm, uint8_t offset,
