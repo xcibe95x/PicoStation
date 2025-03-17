@@ -182,21 +182,21 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
             const unsigned abs_lev_chselect = (currentSector % 2);
             // Copy CD samples to PIO buffer
             for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
-                uint32_t i2s_data;
+                uint32_t i2sData;
 
                 if (g_discImage.isCurrentTrackData()) {
-                    i2s_data = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
+                    i2sData = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
                 } else {
-                    i2s_data = (cdSamples[cache_hit][i]) << 8;
+                    i2sData = (cdSamples[cache_hit][i]) << 8;
                     // g_audioPeak = blah;
                     // g_audioLevel = blah;
                 }
 
-                if (i2s_data & 0x100) {
-                    i2s_data |= 0xFF;
+                if (i2sData & 0x100) {
+                    i2sData |= 0xFF;
                 }
 
-                pioSamples[bufferForSDRead][i] = i2s_data;
+                pioSamples[bufferForSDRead][i] = i2sData;
             }
 
             loadedSector[bufferForSDRead] = currentSector;
@@ -207,6 +207,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         if (!dma_channel_is_busy(dmaChannel)) {
             bufferForDMA = (bufferForDMA + 1) % 2;
             m_sectorSending = loadedSector[bufferForDMA];
+            m_lastSectorTime = time_us_64();
 
             dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 

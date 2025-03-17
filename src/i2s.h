@@ -11,6 +11,7 @@ class I2S {
   public:
     I2S() {};
     int getSectorSending() { return m_sectorSending.Load(); }
+    uint64_t getLastSectorTime() { return m_lastSectorTime.Load(); }
 
     [[noreturn]] void start(MechCommand &mechCommand);
 
@@ -21,5 +22,6 @@ class I2S {
     void reset();
 
     pseudoatomic<int> m_sectorSending;
+    pseudoatomic<uint64_t> m_lastSectorTime;
 };
 }  // namespace picostation

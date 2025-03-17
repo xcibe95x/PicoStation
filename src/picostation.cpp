@@ -64,7 +64,7 @@ static void interrupt_xlat(unsigned int gpio, uint32_t events) { m_mechCommand.p
 static void initPWM(picostation::PWMSettings *settings);
 
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
-    static constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
+    static constexpr unsigned int c_MaxSubqDelayTime = 5410;  // uS
 
     SubQ subq(&g_discImage);
     uint64_t subqDelayTime = 0;
@@ -119,7 +119,7 @@ static void initPWM(picostation::PWMSettings *settings);
             } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
                 g_subqDelay = true;
-                subqDelayTime = time_us_64();
+                subqDelayTime = m_i2s.getLastSectorTime();
             }
         }
     }
