@@ -16,7 +16,7 @@ class I2S {
     [[noreturn]] void start(MechCommand &mechCommand);
 
   private:
-    void generateScramblingKey(uint16_t *cdScramblingKey);
+    void generateScramblingLUT(uint16_t *cdScramblingKey);
     int initDMA(const volatile void *read_addr, unsigned int transfer_count);  // Returns DMA channel number
     void mountSDCard();
     void reset();

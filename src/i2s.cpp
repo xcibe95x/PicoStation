@@ -39,10 +39,10 @@ const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
 };
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
-void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
+void picostation::I2S::generateScramblingLUT(uint16_t *cdScramblingLUT) {
     int key = 1;
 
-    memset(cdScramblingKey, 0, 1176 * sizeof(uint16_t));
+    memset(cdScramblingLUT, 0, 1176 * sizeof(uint16_t));
 
     for (size_t i = 6; i < 1176; i++) {
         char upper = key & 0xFF;
@@ -53,7 +53,7 @@ void picostation::I2S::generateScramblingKey(uint16_t *cdScramblingKey) {
 
         char lower = key & 0xFF;
 
-        cdScramblingKey[i] = (lower << 8) | upper;
+        cdScramblingLUT[i] = (lower << 8) | upper;
 
         for (size_t j = 0; j < 8; j++) {
             int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
@@ -97,7 +97,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     int roundRobinCacheIndex = 0;
     uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)];
 
-    uint16_t cdScramblingKey[1176];
+    uint16_t cdScramblingLUT[1176];
 
     int currentSector = -1;
     m_sectorSending = -1;
@@ -106,7 +106,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     g_imageIndex = 0;
 
-    generateScramblingKey(cdScramblingKey);
+    generateScramblingLUT(cdScramblingLUT);
 
     mountSDCard();
 
@@ -185,7 +185,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
                 uint32_t i2sData;
 
                 if (g_discImage.isCurrentTrackData()) {
-                    i2sData = (cdSamples[cache_hit][i] ^ cdScramblingKey[i]) << 8;
+                    i2sData = (cdSamples[cache_hit][i] ^ cdScramblingLUT[i]) << 8;
                 } else {
                     i2sData = (cdSamples[cache_hit][i]) << 8;
                     // g_audioPeak = blah;
