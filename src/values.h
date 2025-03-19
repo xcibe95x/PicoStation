@@ -11,9 +11,13 @@ enum : unsigned int {
     XLAT = 0,
     SQCK = 1,
     LMTSW = 2,
-    SCEX_DATA = 4,
+    SCEX_DATA = 4,  // UART1 TX
     DOOR = 6,
     RESET = 7,
+    SD_MISO = 8,   // SPI1 RX
+    SD_CS = 9,     // SPI1 CSn
+    SD_SCK = 10,   // SPI1 SCK
+    SD_MOSI = 11,  // SPI1 TX
     SENS = 14,
     DA15 = 15,
     DA16 = 16,
