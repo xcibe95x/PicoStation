@@ -8,6 +8,7 @@
 #include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
+#include "pico/bootrom.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
 #include "values.h"
@@ -136,6 +137,12 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
             break;
         case 0x2:
             g_imageIndex = arg;
+            break;
+        case 0xa:
+            if (arg == 0xBEEF) {
+                // Restart into bootloader
+                rom_reset_usb_boot_extra(Pin::LED, 0, false);
+            }
             break;
     }
 }
@@ -293,7 +300,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
                 break;*/
 
         case TopLevelCommands::CUSTOM:  // picostation
-            //customCommand(latched);
+            customCommand(latched);
             break;
     }
 }

@@ -25,6 +25,7 @@ enum : unsigned int {
     SCOR = 18,
     SQSO = 19,
     CLK = 21,
+    LED = 25,
     CMD_DATA = 26,
     CMD_CK = 27
 };
