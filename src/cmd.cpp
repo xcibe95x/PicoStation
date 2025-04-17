@@ -60,6 +60,7 @@ inline void picostation::MechCommand::autoSequence(const uint32_t latched)  // $
     int tracks_to_move = 0;
 
     m_sensData[SENS::XBUSY] = (subCommand != 0);
+    const int track = g_driveMechanics.getTrack();
 
     if (subCommand == 0x7)  // Focus-On
     {
@@ -69,40 +70,38 @@ inline void picostation::MechCommand::autoSequence(const uint32_t latched)  // $
 
     switch (subCommand & 0xe) {
         case 0x0:  // Cancel
-            DEBUG_PRINT("Cancel\n");
+            //DEBUG_PRINT("Cancel\n"); // Commenting this out, too spammy
             return;
 
         case 0x4:  // Fine search
             tracks_to_move = m_jumpTrack;
-            DEBUG_PRINT("Fine search%d\n", g_track);
+            DEBUG_PRINT("Fine search%d\n", track);
             break;
 
         case 0x8:  // 1 Track Jump
             tracks_to_move = 1;
-            DEBUG_PRINT("1 Track Jump%d\n", g_track);
+            DEBUG_PRINT("1 Track Jump%d\n", track);
             break;
 
         case 0xA:  // 10 Track Jump
             tracks_to_move = 10;
-            DEBUG_PRINT("10 Track Jump%d\n", g_track);
+            DEBUG_PRINT("10 Track Jump%d\n", track);
             break;
 
         case 0xC:  // 2N Track Jump
             tracks_to_move = (2 * m_jumpTrack);
-            DEBUG_PRINT("2N Track Jump%d\n", g_track);
+            DEBUG_PRINT("2N Track Jump%d\n", track);
             break;
 
         case 0xE:  // M Track Move
             tracks_to_move = m_jumpTrack;
-            DEBUG_PRINT("M Track Move%d\n", g_track);
+            DEBUG_PRINT("M Track Move%d\n", track);
             break;
 
         default:
             DEBUG_PRINT("Unsupported command: %x\n", subCommand);
             break;
     }
-
-    const int track = g_driveMechanics.getTrack();
 
     if (reverseJump) {
         m_autoSeqTrack = track - tracks_to_move;

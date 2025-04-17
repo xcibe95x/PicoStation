@@ -106,6 +106,9 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     g_imageIndex = 0;
 
+    uint8_t testSector[2352] = {0};
+    uint8_t testData[] = "Hello World!";
+
     generateScramblingLUT(cdScramblingLUT);
 
     mountSDCard();
@@ -130,7 +133,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
 
-        modChip.injectLicenseString(currentSector, mechCommand);
+        modChip.sendLicenseString(currentSector, mechCommand);
 
         // Load the disc image if it has changed
         const int imageIndex = g_imageIndex.Load();
@@ -162,32 +165,42 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
             // Sector cache lookup/update
             int cache_hit = -1;
+            int16_t *sectorData;
 
-            for (size_t i = 0; i < c_sectorCacheSize; i++) {
-                if (cachedSectors[i] == currentSector) {
-                    cache_hit = i;
+            switch (g_fileListingState.Load()) {
+                case FileListingStates::IDLE:
+                    for (size_t i = 0; i < c_sectorCacheSize; i++) {
+                        if (cachedSectors[i] == currentSector) {
+                            cache_hit = i;
+                            break;
+                        }
+                    }
+
+                    if (cache_hit == -1) {
+                        g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+
+                        cachedSectors[roundRobinCacheIndex] = currentSector;
+                        cache_hit = roundRobinCacheIndex;
+                        roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
+                    }
+
+                    sectorData = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
                     break;
-                }
+                case FileListingStates::GETDIRECTORY:
+                    g_discImage.buildSector(currentSector - c_leadIn, testSector, testData);
+                    sectorData = reinterpret_cast<int16_t *>(testSector);
+                    break;
             }
 
-            if (cache_hit == -1) {
-                g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
-
-                cachedSectors[roundRobinCacheIndex] = currentSector;
-                cache_hit = roundRobinCacheIndex;
-                roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
-            }
-
-            const int16_t *data = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
             const unsigned abs_lev_chselect = (currentSector % 2);
             // Copy CD samples to PIO buffer
             for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
                 uint32_t i2sData;
 
                 if (g_discImage.isCurrentTrackData()) {
-                    i2sData = (cdSamples[cache_hit][i] ^ cdScramblingLUT[i]) << 8;
+                    i2sData = (sectorData[i] ^ cdScramblingLUT[i]) << 8;
                 } else {
-                    i2sData = (cdSamples[cache_hit][i]) << 8;
+                    i2sData = (sectorData[i]) << 8;
                     // g_audioPeak = blah;
                     // g_audioLevel = blah;
                 }

@@ -52,7 +52,7 @@ extern unsigned int g_audioCtrlMode;
 // extern pseudoatomic<int32_t> g_audioLevel;
 
 [[noreturn]] void core0Entry();  // Reset, playback speed, Sled, soct, subq
-[[noreturn]] void core1Entry();  // I2S, sdcard, psnee
+[[noreturn]] void core1Entry();  // I2S, sdcard, modchip
 
 void initHW();
 void updatePlaybackSpeed();

@@ -43,3 +43,10 @@ void picostation::SubQ::start_subq(const int sector) {
     }
 #endif
 }
+
+void picostation::SubQ::stop_subq() {
+    pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, false);
+    pio_sm_restart(PIOInstance::SUBQ, SM::SUBQ);
+    pio_sm_clear_fifos(PIOInstance::SUBQ, SM::SUBQ);
+    pio_sm_exec(PIOInstance::SUBQ, SM::SUBQ, pio_encode_jmp(g_subqOffset));
+}

@@ -10,9 +10,10 @@ class MechCommand;
 class ModChip {
   public:
     void init();
-    void injectLicenseString(const int sector, MechCommand &mechCommand);
+    void sendLicenseString(const int sector, MechCommand &mechCommand);
 
   private:
-    uint64_t m_psneeTimer;
+    void endLicenseSequence();
+    uint64_t m_modchipTimer;
 };
 }  // namespace picostation
