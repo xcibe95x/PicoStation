@@ -70,6 +70,7 @@ constexpr unsigned int SUBQ = 3;
 constexpr int NUM_IMAGES = 3;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
+constexpr int c_licenseSectors = 16; // License sectors in the loader image
 
 constexpr uint32_t c_trackMin = 0;
 constexpr uint32_t c_trackMax = 20892;  // 73:59:58

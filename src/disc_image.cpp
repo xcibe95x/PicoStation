@@ -338,9 +338,10 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
 }
 
 void picostation::DiscImage::readSector(void *buffer, const int sector, DataLocation location) {
-    if (sector >= 0 && sector <= 15) {
+    const int adjustedSector = sector - c_preGap;
+    if (adjustedSector >= 0 && adjustedSector < c_licenseSectors) {
         // License sectors, read from our embedded image
-        memcpy(buffer, &loaderImage[sector * c_cdSamplesBytes], c_cdSamplesBytes);
+        memcpy(buffer, &loaderImage[adjustedSector * c_cdSamplesBytes], c_cdSamplesBytes);
         return;
     }
 
@@ -366,14 +367,12 @@ void picostation::DiscImage::readSector(void *buffer, const int sector, DataLoca
 uint8_t userData[c_cdSamplesBytes] = {0};
 
 void picostation::DiscImage::readSectorRAM(void *buffer, const int sector) {
-    const int adjustedSector = sector - c_leadIn - c_preGap;
+    const int adjustedSector = sector - c_preGap;
     size_t targetOffset = adjustedSector * c_cdSamplesBytes;
     if (targetOffset >= 0 && targetOffset <= sizeof(loaderImage) - c_cdSamplesBytes) {
         memcpy(buffer, &loaderImage[targetOffset], c_cdSamplesBytes);
     } else {
-        // memcpy(buffer, &loaderImage[0], c_cdSamplesBytes);
-        // memset(buffer, 0, c_cdSamplesBytes);
-        buildSector(sector - c_leadIn, (uint8_t *)buffer, userData);
+        buildSector(sector, static_cast<uint8_t *>(buffer), userData);
     }
 }
 
@@ -381,7 +380,7 @@ void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
     FRESULT fr;
     UINT br = 0;
 
-    const int adjustedSector = sector - c_leadIn - c_preGap;
+    const int adjustedSector = sector - c_preGap;
 
     for (size_t i = 1; i <= m_cueDisc.trackCount + 1; i++) {
         if (adjustedSector < m_cueDisc.tracks[i + 1].indices[0]) {
@@ -410,15 +409,14 @@ void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
         }
     }
 
-    if(br == 0)
-    {
-        buildSector(sector - c_leadIn, (uint8_t *)buffer, userData);
+    if (br < c_cdSamplesBytes) {
+        buildSector(sector, static_cast<uint8_t *>(buffer), userData);
         br = c_cdSamplesBytes;
     }
 
-    if (br < c_cdSamplesBytes) {
-        memset((uint8_t *)buffer + br, 0, c_cdSamplesBytes - br);
-        printf("Bytes read less than sampleBytes by %d\n", c_cdSamplesBytes - br);
-    }
+    /*if (br < c_cdSamplesBytes) {
+        memset(static_cast<uint8_t *>(buffer) + br, 0, c_cdSamplesBytes - br);
+        DEBUG_PRINT("Bytes read less than sampleBytes by %d\n", c_cdSamplesBytes - br);
+    }*/
     // DEBUG_PRINT("Sector not found: %d\n", sector);
 }
