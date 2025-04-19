@@ -8,6 +8,7 @@
 
 #include "f_util.h"
 #include "ff.h"
+#include "loaderImage.h"
 #include "logging.h"
 #include "picostation.h"
 #include "subq.h"
@@ -95,7 +96,7 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
 
 void picostation::DiscImage::buildSector(const int sector, uint8_t *buffer, uint8_t *userData) {
     // Clear the buffer to avoid garbage data
-    memset(buffer, 0, 2352);
+    memset(buffer, 0, c_cdSamplesBytes);
 
     // Sync - 12 bytes
     buffer[0] = 0;
@@ -296,6 +297,7 @@ static struct CueFile *fileopen(struct CueFile *file, struct CueScheduler *sched
 }
 
 FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
+    // To-do: Need alternate code paths here for parsing cue from alternate sources.
     struct CueScheduler scheduler;
     Scheduler_construct(&scheduler);
     Context context;
@@ -335,14 +337,56 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
     return FR_OK;
 }
 
-void picostation::DiscImage::readData(void *buffer, const int sector) {
+void picostation::DiscImage::readSector(void *buffer, const int sector, DataLocation location) {
+    if (sector >= 0 && sector <= 15) {
+        // License sectors, read from our embedded image
+        memcpy(buffer, &loaderImage[sector * c_cdSamplesBytes], c_cdSamplesBytes);
+        return;
+    }
+
+    switch (location) {
+        case DataLocation::SDCard:
+            readSectorSD(buffer, sector);
+            break;
+        case DataLocation::RAM:
+            readSectorRAM(buffer, sector);
+            break;
+        case DataLocation::USBSerial:
+            // Handle USB serial read as needed
+            break;
+        case DataLocation::USBStorage:
+            // Handle USB storage read as needed
+            break;
+        default:
+            // Handle other locations as needed
+            break;
+    }
+}
+
+uint8_t userData[c_cdSamplesBytes] = {0};
+
+void picostation::DiscImage::readSectorRAM(void *buffer, const int sector) {
+    const int adjustedSector = sector - c_leadIn - c_preGap;
+    size_t targetOffset = adjustedSector * c_cdSamplesBytes;
+    if (targetOffset >= 0 && targetOffset <= sizeof(loaderImage) - c_cdSamplesBytes) {
+        memcpy(buffer, &loaderImage[targetOffset], c_cdSamplesBytes);
+    } else {
+        // memcpy(buffer, &loaderImage[0], c_cdSamplesBytes);
+        // memset(buffer, 0, c_cdSamplesBytes);
+        buildSector(sector - c_leadIn, (uint8_t *)buffer, userData);
+    }
+}
+
+void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
     FRESULT fr;
     UINT br = 0;
 
+    const int adjustedSector = sector - c_leadIn - c_preGap;
+
     for (size_t i = 1; i <= m_cueDisc.trackCount + 1; i++) {
-        if (sector < m_cueDisc.tracks[i + 1].indices[0]) {
+        if (adjustedSector < m_cueDisc.tracks[i + 1].indices[0]) {
             if (m_cueDisc.tracks[i].file->opaque) {
-                const int64_t seekBytes = (sector - m_cueDisc.tracks[i].fileOffset) * 2352LL;
+                const int64_t seekBytes = (adjustedSector - m_cueDisc.tracks[i].fileOffset) * c_cdSamplesBytes;
                 if (seekBytes >= 0) {
                     fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
                     if (FR_OK != fr) {
@@ -365,8 +409,16 @@ void picostation::DiscImage::readData(void *buffer, const int sector) {
             }
         }
     }
+
+    if(br == 0)
+    {
+        buildSector(sector - c_leadIn, (uint8_t *)buffer, userData);
+        br = c_cdSamplesBytes;
+    }
+
     if (br < c_cdSamplesBytes) {
         memset((uint8_t *)buffer + br, 0, c_cdSamplesBytes - br);
+        printf("Bytes read less than sampleBytes by %d\n", c_cdSamplesBytes - br);
     }
     // DEBUG_PRINT("Sector not found: %d\n", sector);
 }

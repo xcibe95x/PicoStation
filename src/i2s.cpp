@@ -39,6 +39,8 @@ const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
 };
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
+static picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
+
 void picostation::I2S::generateScramblingLUT(uint16_t *cdScramblingLUT) {
     int key = 1;
 
@@ -106,7 +108,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     g_imageIndex = 0;
 
-    uint8_t testSector[2352] = {0};
+    uint8_t testSector[c_cdSamplesBytes] = {0};
     uint8_t testData[] = "Hello World!";
 
     generateScramblingLUT(cdScramblingLUT);
@@ -177,7 +179,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
                     }
 
                     if (cache_hit == -1) {
-                        g_discImage.readData(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn - c_preGap);
+                        g_discImage.readSector(cdSamples[roundRobinCacheIndex], currentSector, s_dataLocation);
 
                         cachedSectors[roundRobinCacheIndex] = currentSector;
                         cache_hit = roundRobinCacheIndex;
