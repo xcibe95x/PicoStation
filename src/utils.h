@@ -1,8 +1,16 @@
 #pragma once
 
 #include <math.h>
+#include <stdint.h>
+
+#include <numbers>
 
 // For calculating sector at a position in the spiral track/groove
-inline int trackToSector(const int track) { return pow(track, 2) * 0.00031499 + track * 9.357516535; }
+static constexpr double c_tracksPerSecond = 9.341456;
+inline int trackToSector(const int track) {
+    return pow(track, 2) * (std::numbers::pi / 10000) + track * c_tracksPerSecond;
+}
 
-inline int sectorsPerTrack(const int track) { return round(track * 0.000616397 + 9); }
+// For calculating the number of sectors per track
+static constexpr double c_sectorsPerTrack = 0.00067306685;
+inline int sectorsPerTrack(const int track) { return round(track * c_sectorsPerTrack + 9); }

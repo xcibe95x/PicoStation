@@ -39,27 +39,27 @@ const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
 };
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
-static picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
+static constexpr picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
 
 void picostation::I2S::generateScramblingLUT(uint16_t *cdScramblingLUT) {
-    int key = 1;
+    int shift = 1;
 
     memset(cdScramblingLUT, 0, 1176 * sizeof(uint16_t));
 
     for (size_t i = 6; i < 1176; i++) {
-        char upper = key & 0xFF;
+        uint8_t upper = shift & 0xFF;
         for (size_t j = 0; j < 8; j++) {
-            int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
-            key = (bit | key) >> 1;
+            unsigned bit = ((shift & 1) ^ ((shift & 2) >> 1)) << 15;
+            shift = (bit | shift) >> 1;
         }
 
-        char lower = key & 0xFF;
+        uint8_t lower = shift & 0xFF;
 
         cdScramblingLUT[i] = (lower << 8) | upper;
 
         for (size_t j = 0; j < 8; j++) {
-            int bit = ((key & 1) ^ ((key & 2) >> 1)) << 15;
-            key = (bit | key) >> 1;
+            unsigned bit = ((shift & 1) ^ ((shift & 2) >> 1)) << 15;
+            shift = (bit | shift) >> 1;
         }
     }
 }
@@ -165,46 +165,38 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
                 }
             }
 
+            // Load the next sector
             // Sector cache lookup/update
             int cache_hit = -1;
             int16_t *sectorData;
 
-            switch (g_fileListingState.Load()) {
-                case FileListingStates::IDLE:
-                    for (size_t i = 0; i < c_sectorCacheSize; i++) {
-                        if (cachedSectors[i] == currentSector) {
-                            cache_hit = i;
-                            break;
-                        }
-                    }
-
-                    if (cache_hit == -1) {
-                        g_discImage.readSector(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn, s_dataLocation);
-
-                        cachedSectors[roundRobinCacheIndex] = currentSector;
-                        cache_hit = roundRobinCacheIndex;
-                        roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
-                    }
-
-                    sectorData = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
+            for (size_t i = 0; i < c_sectorCacheSize; i++) {
+                if (cachedSectors[i] == currentSector) {
+                    cache_hit = i;
                     break;
-                case FileListingStates::GETDIRECTORY:
-                    g_discImage.buildSector(currentSector - c_leadIn, testSector, testData);
-                    sectorData = reinterpret_cast<int16_t *>(testSector);
-                    break;
+                }
             }
 
-            const unsigned abs_lev_chselect = (currentSector % 2);
+            if (cache_hit == -1) {
+                g_discImage.readSector(cdSamples[roundRobinCacheIndex], currentSector - c_leadIn, s_dataLocation);
+
+                cachedSectors[roundRobinCacheIndex] = currentSector;
+                cache_hit = roundRobinCacheIndex;
+                roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
+            }
+
+            sectorData = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
+
             // Copy CD samples to PIO buffer
             for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
                 uint32_t i2sData;
 
                 if (g_discImage.isCurrentTrackData()) {
+                    // Scramble the data
                     i2sData = (sectorData[i] ^ cdScramblingLUT[i]) << 8;
                 } else {
+                    // Audio track, just copy the data
                     i2sData = (sectorData[i]) << 8;
-                    // g_audioPeak = blah;
-                    // g_audioLevel = blah;
                 }
 
                 if (i2sData & 0x100) {
