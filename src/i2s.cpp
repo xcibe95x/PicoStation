@@ -86,18 +86,17 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 }
 
 [[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
-    static constexpr size_t c_sectorCacheSize = 50;
-
     picostation::ModChip modChip;
 
-    uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)] = {0};
+    static constexpr size_t c_sectorCacheSize = 50;
+    int cachedSectors[c_sectorCacheSize];
+    int roundRobinCacheIndex = 0;
+    static uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)]; // Make static to move off stack
+    static uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)];
+
     int bufferForDMA = 1;
     int bufferForSDRead = 0;
     int loadedSector[2];
-
-    int cachedSectors[c_sectorCacheSize];
-    int roundRobinCacheIndex = 0;
-    uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)];
 
     uint16_t cdScramblingLUT[1176];
 
