@@ -17,6 +17,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.24.1)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(PICO_PLATFORM rp2040)
 
 set(CMAKE_BUILD_TYPE MinSizeRel) # Debug, Release, RelWithDebInfo, MinSizeRel

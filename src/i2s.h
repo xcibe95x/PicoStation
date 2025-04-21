@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <array>
+
 #include "pseudo_atomics.h"
 
 namespace picostation {
@@ -16,7 +18,7 @@ class I2S {
     [[noreturn]] void start(MechCommand &mechCommand);
 
   private:
-    void generateScramblingLUT(uint16_t *cdScramblingKey);
+    static constexpr std::array<uint16_t, 1176> generateScramblingLUT();
     int initDMA(const volatile void *read_addr, unsigned int transfer_count);  // Returns DMA channel number
     void mountSDCard();
     void reset();

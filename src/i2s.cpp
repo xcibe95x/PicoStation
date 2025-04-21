@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <array>
 
 #include "cmd.h"
 #include "disc_image.h"
@@ -41,10 +42,9 @@ pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to sele
 
 static constexpr picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
 
-void picostation::I2S::generateScramblingLUT(uint16_t *cdScramblingLUT) {
+constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
+    std::array<uint16_t, 1176> cdScramblingLUT = {0};
     int shift = 1;
-
-    memset(cdScramblingLUT, 0, 1176 * sizeof(uint16_t));
 
     for (size_t i = 6; i < 1176; i++) {
         uint8_t upper = shift & 0xFF;
@@ -62,6 +62,8 @@ void picostation::I2S::generateScramblingLUT(uint16_t *cdScramblingLUT) {
             shift = (bit | shift) >> 1;
         }
     }
+
+    return cdScramblingLUT;
 }
 
 void picostation::I2S::mountSDCard() {
@@ -91,23 +93,19 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     static constexpr size_t c_sectorCacheSize = 50;
     int cachedSectors[c_sectorCacheSize];
     int roundRobinCacheIndex = 0;
-    static uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)]; // Make static to move off stack
+    static uint16_t cdSamples[c_sectorCacheSize][c_cdSamplesBytes / sizeof(uint16_t)];  // Make static to move off stack
     static uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)];
+    static constexpr auto cdScramblingLUT = generateScramblingLUT();
 
     int bufferForDMA = 1;
     int bufferForSDRead = 0;
     int loadedSector[2];
-
-    uint16_t cdScramblingLUT[1176];
-
     int currentSector = -1;
     m_sectorSending = -1;
     int loadedImageIndex = -1;
     int filesinDir = 0;
 
     g_imageIndex = 0;
-
-    generateScramblingLUT(cdScramblingLUT);
 
     mountSDCard();
 
