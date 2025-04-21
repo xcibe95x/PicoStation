@@ -57,6 +57,7 @@ void picostation::ModChip::sendLicenseString(const int sector, MechCommand &mech
             if (!soctDisabled || !gfsSet || !inWobbleGroove) {
                 return false;
             }
+            sleep_us(50);
         }
         return true;
     };

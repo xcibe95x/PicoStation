@@ -64,6 +64,8 @@ static constexpr uint16_t crc16_lut[256] = {
     0x1ce0, 0x0cc1, 0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8, 0x6e17, 0x7e36, 0x4e55, 0x5e74,
     0x2e93, 0x3eb2, 0x0ed1, 0x1ef0};
 
+static uint8_t s_userData[c_cdSamplesBytes] = {0};
+
 static MSF sectorToMSF(const int sector) {
     MSF msf;
     msf.mm = abs(sector / 75 / 60);
@@ -352,19 +354,18 @@ void picostation::DiscImage::readSector(void *buffer, const int sector, DataLoca
         case DataLocation::RAM:
             readSectorRAM(buffer, sector);
             break;
-        case DataLocation::USBSerial:
+        /*case DataLocation::USBSerial:
             // Handle USB serial read as needed
             break;
         case DataLocation::USBStorage:
             // Handle USB storage read as needed
-            break;
+            break;*/
         default:
-            // Handle other locations as needed
+            // Unimplemented, send filler data
+            buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
             break;
     }
 }
-
-uint8_t userData[c_cdSamplesBytes] = {0};
 
 void picostation::DiscImage::readSectorRAM(void *buffer, const int sector) {
     const int adjustedSector = sector - c_preGap;
@@ -372,7 +373,7 @@ void picostation::DiscImage::readSectorRAM(void *buffer, const int sector) {
     if (targetOffset >= 0 && targetOffset <= sizeof(loaderImage) - c_cdSamplesBytes) {
         memcpy(buffer, &loaderImage[targetOffset], c_cdSamplesBytes);
     } else {
-        buildSector(sector, static_cast<uint8_t *>(buffer), userData);
+        buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
     }
 }
 
@@ -410,7 +411,7 @@ void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
     }
 
     if (br < c_cdSamplesBytes) {
-        buildSector(sector, static_cast<uint8_t *>(buffer), userData);
+        buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
         br = c_cdSamplesBytes;
     }
 

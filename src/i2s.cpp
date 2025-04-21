@@ -108,9 +108,6 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     g_imageIndex = 0;
 
-    uint8_t testSector[c_cdSamplesBytes] = {0};
-    uint8_t testData[] = "Hello World!";
-
     generateScramblingLUT(cdScramblingLUT);
 
     mountSDCard();
@@ -140,7 +137,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         // Load the disc image if it has changed
         const int imageIndex = g_imageIndex.Load();
         if (loadedImageIndex != imageIndex) {
-            g_discImage.load(target_Cues[g_imageIndex.Load()]);
+            g_discImage.load(target_Cues[imageIndex]);
             loadedImageIndex = imageIndex;
 
             // Reset cache and loaded sectors

@@ -21,9 +21,7 @@ void picostation::DriveMechanics::moveToNextSector() {
 
 void picostation::DriveMechanics::moveSled(picostation::MechCommand &mechCommand) {
     if ((time_us_64() - m_sledTimer) > c_MaxTrackMoveTime) {
-        m_track = std::clamp(m_track + m_sledMoveDirection, c_trackMin, c_trackMax);  // +1 or -1
-        m_sectorForTrackUpdate = trackToSector(m_track);
-        m_sector = m_sectorForTrackUpdate;
+        setTrack(m_track + m_sledMoveDirection);
 
         const int tracks_moved = m_track - m_originalTrack;
         if (abs(tracks_moved) >= m_countTrack) {

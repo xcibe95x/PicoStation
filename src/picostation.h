@@ -48,6 +48,8 @@ extern unsigned int g_subqOffset;
 extern bool g_subqDelay;
 extern int g_targetPlaybackSpeed;
 extern unsigned int g_audioCtrlMode;
+
+// To-do: Implement audio level/peak meters
 // extern pseudoatomic<int32_t> g_audioPeak;
 // extern pseudoatomic<int32_t> g_audioLevel;
 
