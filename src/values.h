@@ -11,9 +11,13 @@ enum : unsigned int {
     XLAT = 0,
     SQCK = 1,
     LMTSW = 2,
-    SCEX_DATA = 4,
+    SCEX_DATA = 4,  // UART1 TX
     DOOR = 6,
     RESET = 7,
+    SD_MISO = 8,   // SPI1 RX
+    SD_CS = 9,     // SPI1 CSn
+    SD_SCK = 10,   // SPI1 SCK
+    SD_MOSI = 11,  // SPI1 TX
     SENS = 14,
     DA15 = 15,
     DA16 = 16,
@@ -21,6 +25,7 @@ enum : unsigned int {
     SCOR = 18,
     SQSO = 19,
     CLK = 21,
+    LED = 25,
     CMD_DATA = 26,
     CMD_CK = 27
 };
@@ -62,12 +67,13 @@ constexpr unsigned int SOCT = 2;
 constexpr unsigned int SUBQ = 3;
 }  // namespace SM
 
-constexpr int NUM_IMAGES = 1;
+constexpr int NUM_IMAGES = 3;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
+constexpr int c_licenseSectors = 16; // License sectors in the loader image
 
-constexpr int c_trackMin = 0;
-constexpr int c_trackMax = 20892;  // 73:59:58
+constexpr uint32_t c_trackMin = 0;
+constexpr uint32_t c_trackMax = 20892;  // 73:59:58
 constexpr int c_sectorMin = 0;
 constexpr int c_sectorMax = 333000;  // 74:00:00
 

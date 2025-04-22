@@ -1,4 +1,5 @@
 #include "pseudo_atomics.h"
+#include "hardware/clocks.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "picostation.h"

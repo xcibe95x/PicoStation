@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <stdint.h>
 
 #include "pseudo_atomics.h"
@@ -20,7 +21,7 @@ class DriveMechanics {
     void setSectorForTrackUpdate(int sectorForTrackUpdate) { m_sectorForTrackUpdate = sectorForTrackUpdate; }
     void setSledMoveDirection(int sledMoveDirection);
     void setTrack(uint32_t track) {
-        m_track = clamp(track, c_trackMin, c_trackMax);
+        m_track = std::clamp(track, c_trackMin, c_trackMax);
         m_sectorForTrackUpdate = trackToSector(m_track);
         m_sector = m_sectorForTrackUpdate;
     }

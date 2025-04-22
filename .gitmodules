@@ -1,3 +1,6 @@
 [submodule "third_party/RP2040_Pseudo_Atomic"]
 	path = third_party/RP2040_Pseudo_Atomic
 	url = https://github.com/TSprech/RP2040_Pseudo_Atomic.git
+[submodule "tools/enterBootloader"]
+	path = tools/enterBootloader
+	url = https://github.com/johnbaumann/picostation_enterBootloader.git

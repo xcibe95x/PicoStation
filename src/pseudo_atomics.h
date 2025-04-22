@@ -7,9 +7,10 @@
 
 inline void initPseudoAtomics() { patom::PseudoAtomicInit(); }
 
-template<patom::internal::atomic_t T>
+template <patom::internal::atomic_t T>
 using pseudoatomic = patom::PseudoAtomic<T>;
 #else
+#include <atomic>
 // Gutted version of the class from RP2040Atomic.hpp, all credits to the original author
 
 inline void initPseudoAtomics() {}
@@ -18,11 +19,13 @@ template <typename T>
 class pseudoatomic {
   public:
     auto operator=(T t) -> pseudoatomic<T>& {
+        // To-do: Need a barrier
         t_ = t;
         return *this;
     }
 
     auto Load() -> T {
+        // To-do: Need a barrier
         auto t = t_;
         return t;
     }

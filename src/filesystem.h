@@ -2,15 +2,9 @@
 
 #include <stdint.h>
 
-#include "ff.h"
+const size_t c_fileNameLength = 255;
 
-#if FF_USE_LFN
-const size_t c_fileNameLength = FF_LFN_BUF;
-#else
-const size_t c_fileNameLength = 12 + 1;
-#endif
-
-class FileSystem {
+class DirectoryListing {
   public:
     enum Enum { IDLE, GETDIRECTORY };
 
@@ -21,9 +15,11 @@ class FileSystem {
     };
 
     void init();
-
+    int getNumberofFileEntries(const char *dir);
+    void readDirectoryToBuffer(void *buffer, const char *path, const size_t offset, const unsigned int bufferSize = 2324);
+    void setDirectory(const char *dir);
+    
   private:
-    DIR m_dirObj;
     int m_fileCount = -1;
     char m_cwdbuf[c_fileNameLength] = "/";
 

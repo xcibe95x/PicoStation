@@ -15,6 +15,13 @@ class DiscImage {
     DiscImage() {};
     ~DiscImage() {};
 
+    enum DataLocation {
+        RAM,
+        SDCard,
+        USBSerial,
+        USBStorage,
+    };
+
     void buildSector(const int sector, uint8_t *buffer, uint8_t *userData);
     FRESULT load(const TCHAR *targetCue);
     SubQ::Data generateSubQ(const int sector);
@@ -22,7 +29,9 @@ class DiscImage {
     bool isCurrentTrackData() {
         return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA;
     };
-    void readData(void *buffer, const int sector);
+    void readSector(void *buffer, const int sector, DataLocation location);
+    void readSectorRAM(void *buffer, const int sector);
+    void readSectorSD(void *buffer, const int sector);
 
   private:
     CueDisc m_cueDisc;

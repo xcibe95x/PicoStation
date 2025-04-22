@@ -8,9 +8,9 @@
 #include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
+#include "pico/bootrom.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_CMD
@@ -19,7 +19,7 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern volatile int g_imageIndex;
+extern pseudoatomic<int> g_imageIndex;
 
 inline void picostation::MechCommand::audioControl(const uint32_t latched) {
     const uint32_t pct2_bit = (1 << 14);
@@ -60,6 +60,7 @@ inline void picostation::MechCommand::autoSequence(const uint32_t latched)  // $
     int tracks_to_move = 0;
 
     m_sensData[SENS::XBUSY] = (subCommand != 0);
+    const int track = g_driveMechanics.getTrack();
 
     if (subCommand == 0x7)  // Focus-On
     {
@@ -69,40 +70,38 @@ inline void picostation::MechCommand::autoSequence(const uint32_t latched)  // $
 
     switch (subCommand & 0xe) {
         case 0x0:  // Cancel
-            DEBUG_PRINT("Cancel\n");
+            //DEBUG_PRINT("Cancel\n"); // Commenting this out, too spammy
             return;
 
         case 0x4:  // Fine search
             tracks_to_move = m_jumpTrack;
-            DEBUG_PRINT("Fine search%d\n", g_track);
+            DEBUG_PRINT("Fine search%d\n", track);
             break;
 
         case 0x8:  // 1 Track Jump
             tracks_to_move = 1;
-            DEBUG_PRINT("1 Track Jump%d\n", g_track);
+            DEBUG_PRINT("1 Track Jump%d\n", track);
             break;
 
         case 0xA:  // 10 Track Jump
             tracks_to_move = 10;
-            DEBUG_PRINT("10 Track Jump%d\n", g_track);
+            DEBUG_PRINT("10 Track Jump%d\n", track);
             break;
 
         case 0xC:  // 2N Track Jump
             tracks_to_move = (2 * m_jumpTrack);
-            DEBUG_PRINT("2N Track Jump%d\n", g_track);
+            DEBUG_PRINT("2N Track Jump%d\n", track);
             break;
 
         case 0xE:  // M Track Move
             tracks_to_move = m_jumpTrack;
-            DEBUG_PRINT("M Track Move%d\n", g_track);
+            DEBUG_PRINT("M Track Move%d\n", track);
             break;
 
         default:
             DEBUG_PRINT("Unsupported command: %x\n", subCommand);
             break;
     }
-
-    const int track = g_driveMechanics.getTrack();
 
     if (reverseJump) {
         m_autoSeqTrack = track - tracks_to_move;
@@ -137,6 +136,12 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
             break;
         case 0x2:
             g_imageIndex = arg;
+            break;
+        case 0xa:
+            if (arg == 0xBEEF) {
+                // Restart into bootloader
+                rom_reset_usb_boot_extra(Pin::LED, 0, false);
+            }
             break;
     }
 }
@@ -248,7 +253,6 @@ inline void picostation::MechCommand::spindleControl(const uint32_t latched) {
     }*/
 }
 
-// void __time_critical_func(picostation::MechCommand::interrupt_xlat)(unsigned int gpio, uint32_t events) {
 void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
     const uint32_t latched = m_latched;
     const uint32_t command = (latched & 0xF00000) >> 20;

@@ -15,7 +15,6 @@
 #include "pico/stdlib.h"
 #include "pseudo_atomics.h"
 #include "subq.h"
-#include "utils.h"
 #include "values.h"
 
 #if DEBUG_MAIN
@@ -24,12 +23,9 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-// To-do: Establish thread safety: identify variables that are shared between cores, wrap them in mutexes or spin locks,
-// maybe in a class?
 // To-do: Implement lid switch behavior
 // To-do: Implement a console side menu to select the cue file
 // To-do: Implement level meter mode to command $AX - AudioCTRL
-// To-do: Implement UART(250 baud) for psnee
 // To-do: Fix seeks that go into the lead-in + track 1 pregap areas, possibly sending bad data over I2S
 
 // To-do: Make an ODE class and move these to members
@@ -42,11 +38,11 @@ static int s_currentPlaybackSpeed = 1;
 int picostation::g_targetPlaybackSpeed = 1;  // core0: r/w
 
 mutex_t picostation::g_mechaconMutex;
-bool picostation::g_coreReady[2] = {false, false};
+pseudoatomic<bool> picostation::g_coreReady[2];
 
 unsigned int picostation::g_audioCtrlMode = audioControlModes::NORMAL;
-// volatile int32_t picostation::g_audioPeak = 0;
-// volatile int32_t picostation::g_audioLevel = 0;
+// pseudoatomic<int32_t> picostation::g_audioPeak;
+// pseudoatomic<int32_t> picostation::g_audioLevel = 0;
 
 pseudoatomic<picostation::FileListingStates> picostation::g_fileListingState;
 pseudoatomic<uint32_t> picostation::g_fileArg;
@@ -68,13 +64,13 @@ static void interrupt_xlat(unsigned int gpio, uint32_t events) { m_mechCommand.p
 static void initPWM(picostation::PWMSettings *settings);
 
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
-    static constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
+    static constexpr unsigned int c_MaxSubqDelayTime = 5410;  // uS
 
     SubQ subq(&g_discImage);
     uint64_t subqDelayTime = 0;
 
     g_coreReady[0] = true;
-    while (!g_coreReady[1]) {
+    while (!g_coreReady[1].Load()) {
         tight_loop_contents();
     }
 
@@ -123,7 +119,7 @@ static void initPWM(picostation::PWMSettings *settings);
             } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
                 g_subqDelay = true;
-                subqDelayTime = time_us_64();
+                subqDelayTime = m_i2s.getLastSectorTime();
             }
         }
     }
@@ -161,8 +157,8 @@ void picostation::initHW() {
     gpio_set_dir(Pin::XLAT, GPIO_IN);
     gpio_set_dir(Pin::SQCK, GPIO_IN);
     gpio_set_dir(Pin::LMTSW, GPIO_OUT);
-    //gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
-    //gpio_put(Pin::SCEX_DATA, 1);
+    // gpio_set_dir(Pin::SCEX_DATA, GPIO_OUT);
+    // gpio_put(Pin::SCEX_DATA, 1);
     gpio_set_dir(Pin::DOOR, GPIO_IN);
     gpio_set_dir(Pin::RESET, GPIO_IN);
     gpio_set_dir(Pin::SENS, GPIO_OUT);
@@ -218,6 +214,10 @@ void picostation::initHW() {
 
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interrupt_xlat);
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
+
+    g_coreReady[0] = false;
+    g_coreReady[1] = false;
+
     DEBUG_PRINT("ON!\n");
 }
 
