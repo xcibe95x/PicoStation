@@ -339,6 +339,40 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
     return FR_OK;
 }
 
+void picostation::DiscImage::makeDummyCue() {
+    // Create a dummy cue disc with a single data track, as well as lead-in and lead-out tracks.
+
+    constexpr uint32_t c_sectorCount = (98 * 75 * 60) + (57 * 75) + 74;  // 98:57:74(mm:ss:ff) leaving room for 2 sec pre-gap and lead-in
+
+    m_cueDisc.trackCount = 1;
+
+    // Lead-in track
+    m_cueDisc.tracks[0].trackType = CueTrackType::TRACK_TYPE_UNKNOWN;
+    m_cueDisc.tracks[0].indices[0] = 0;
+    m_cueDisc.tracks[0].indices[1] = 0;
+    m_cueDisc.tracks[0].size = 0;
+
+    // Data track
+    m_cueDisc.tracks[1].trackType = CueTrackType::TRACK_TYPE_DATA;
+    m_cueDisc.tracks[1].indices[0] = 0;
+    m_cueDisc.tracks[1].indices[1] = 0;
+    m_cueDisc.tracks[1].size = c_sectorCount;
+
+    // Lead-out track
+    m_cueDisc.tracks[2].trackType = CueTrackType::TRACK_TYPE_UNKNOWN;
+    m_cueDisc.tracks[2].fileOffset = m_cueDisc.tracks[1].indices[1] + m_cueDisc.tracks[1].size;
+    m_cueDisc.tracks[2].indices[0] = m_cueDisc.tracks[2].fileOffset;
+    m_cueDisc.tracks[2].indices[1] = m_cueDisc.tracks[2].indices[0];
+
+    m_hasData = true;
+
+    DEBUG_PRINT("Track\tStart\tLength\tPregap\n");
+    for (size_t i = 0; i <= m_cueDisc.trackCount + 1; i++) {
+        DEBUG_PRINT("%d\t%d\t%d\t%d\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
+                    m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
+    }
+}
+
 void picostation::DiscImage::readSector(void *buffer, const int sector, DataLocation location) {
     const int adjustedSector = sector - c_preGap;
     if (adjustedSector >= 0 && adjustedSector < c_licenseSectors) {

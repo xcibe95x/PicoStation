@@ -133,8 +133,15 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
         // Load the disc image if it has changed
         const int imageIndex = g_imageIndex.Load();
+
+        // Hacky load image from target data location
         if (loadedImageIndex != imageIndex) {
-            g_discImage.load(target_Cues[imageIndex]);
+            if (s_dataLocation == picostation::DiscImage::DataLocation::SDCard) {
+                g_discImage.load(target_Cues[imageIndex]);
+            } else if (s_dataLocation == picostation::DiscImage::DataLocation::RAM) {
+                g_discImage.makeDummyCue();
+            }
+
             loadedImageIndex = imageIndex;
 
             // Reset cache and loaded sectors

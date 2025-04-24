@@ -29,6 +29,7 @@ class DiscImage {
     bool isCurrentTrackData() {
         return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA;
     };
+    void makeDummyCue();
     void readSector(void *buffer, const int sector, DataLocation location);
     void readSectorRAM(void *buffer, const int sector);
     void readSectorSD(void *buffer, const int sector);
