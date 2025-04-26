@@ -32,6 +32,9 @@ add_executable(picostation)
 
 target_compile_definitions(
     picostation PUBLIC
+    PICO_DEFAULT_UART=0
+    PICO_DEFAULT_UART_TX_PIN=0
+    PICO_DEFAULT_UART_RX_PIN=1
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
     MAXINDEX=2
 )
@@ -47,7 +50,6 @@ target_sources(picostation PRIVATE
     src/picostation.cpp
     src/subq.cpp
     src/utils.cpp
-
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
@@ -57,8 +59,9 @@ target_sources(picostation PRIVATE
 )
 
 target_include_directories(picostation PRIVATE
-    third_party
-    .
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/third_party
 )
 
 add_subdirectory(third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src build)
@@ -79,11 +82,8 @@ target_link_libraries(picostation PRIVATE
     pico_stdlib
 )
 
-# NOTE: for this to work, src\ff15\source\ffconf.h must be removed or renamed.
 target_include_directories(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico BEFORE INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/include
 )
-
-#pico_set_binary_type(picostation copy_to_ram)
 
 pico_add_extra_outputs(picostation)
