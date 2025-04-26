@@ -79,6 +79,11 @@ target_link_libraries(picostation PRIVATE
     pico_stdlib
 )
 
+# NOTE: for this to work, src\ff15\source\ffconf.h must be removed or renamed.
+target_include_directories(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico BEFORE INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/include
+)
+
 #pico_set_binary_type(picostation copy_to_ram)
 
 pico_add_extra_outputs(picostation)

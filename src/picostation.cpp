@@ -138,6 +138,7 @@ void picostation::initHW() {
     sleep_ms(1250);
 #endif
     DEBUG_PRINT("Initializing...\n");
+    DEBUG_PRINT("FF_FS_LOCK = %d\n", FF_FS_LOCK);
 
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(100);
