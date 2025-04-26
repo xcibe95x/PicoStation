@@ -22,25 +22,22 @@ https://github.com/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/tree/main#customizing
 
 #include "hw_config.h"
 
-#include "values.h"
-
 /* Configuration of hardware SPI object */
 static spi_t spi = {
-    .hw_inst = spi1,
-    .miso_gpio = Pin::SD_MISO,
-    .mosi_gpio = Pin::SD_MOSI,
-    .sck_gpio = Pin::SD_SCK,
+    .hw_inst = spi0,  // SPI component
+    .sck_gpio = 2,    // GPIO number (not Pico pin number)
+    .mosi_gpio = 3,
+    .miso_gpio = 4,
     //.baud_rate = 125 * 1000 * 1000 / 8  // 15625000 Hz
     //.baud_rate = 125 * 1000 * 1000 / 6  // 20833333 Hz
-    //.baud_rate = 125 * 1000 * 1000 / 4  // 31250000 Hz
+    .baud_rate = 125 * 1000 * 1000 / 4  // 31250000 Hz
     //.baud_rate = 125 * 1000 * 1000 / 2  // 62500000 Hz
-    .baud_rate = 30 * 1000 * 1000  // 30 MHz
 };
 
 /* SPI Interface */
 static sd_spi_if_t spi_if = {
-    .spi = &spi,           // Pointer to the SPI driving this card
-    .ss_gpio = Pin::SD_CS  // The SPI slave select GPIO for this SD card
+    .spi = &spi,  // Pointer to the SPI driving this card
+    .ss_gpio = 7  // The SPI slave select GPIO for this SD card
 };
 
 /* Configuration of the SD Card socket object */

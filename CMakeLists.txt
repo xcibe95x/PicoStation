@@ -61,7 +61,7 @@ target_include_directories(picostation PRIVATE
     .
 )
 
-add_subdirectory(third_party/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI build)
+add_subdirectory(third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src build)
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
 pico_enable_stdio_usb(picostation 1)
@@ -69,11 +69,11 @@ pico_enable_stdio_usb(picostation 1)
 pico_generate_pio_header(picostation ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 
 target_link_libraries(picostation PRIVATE
-    FatFs_SPI
     hardware_dma
     hardware_pio
     hardware_pwm
     hardware_vreg
+    no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
     pico_bootrom
     pico_multicore
     pico_stdlib

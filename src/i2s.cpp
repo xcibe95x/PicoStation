@@ -23,7 +23,6 @@
 #include "pico/stdlib.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
-#include "rtc.h"
 #include "subq.h"
 #include "values.h"
 
@@ -41,6 +40,7 @@ const TCHAR target_Cues[NUM_IMAGES][c_fileNameLength] = {
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 
 static constexpr picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
+static FATFS s_fatFS;
 
 constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
     std::array<uint16_t, 1176> cdScramblingLUT = {0};
@@ -67,8 +67,8 @@ constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
 }
 
 void picostation::I2S::mountSDCard() {
-    sd_card_t *pSD = sd_get_by_num(0);
-    FRESULT fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
+    
+    FRESULT fr = f_mount(&s_fatFS, "", 1);
     if (FR_OK != fr) {
         panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
     }
