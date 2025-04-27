@@ -40,9 +40,6 @@ class DriveMechanics {
 
     int m_sledMoveDirection = SledMove::STOP;
     uint64_t m_sledTimer = 0;
-
-    static constexpr unsigned int c_MaxTrackMoveTime = 15;    // uS
-    static constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
 };
 
 extern DriveMechanics g_driveMechanics;

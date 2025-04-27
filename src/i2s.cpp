@@ -67,7 +67,6 @@ constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
 }
 
 void picostation::I2S::mountSDCard() {
-    
     FRESULT fr = f_mount(&s_fatFS, "", 1);
     if (FR_OK != fr) {
         panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
@@ -119,12 +118,18 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     modChip.init();
 
+#if DEBUG_I2S
+    uint64_t startTime = time_us_64();
+    uint64_t endTime;
+    uint64_t totalTime = 0;
+    uint64_t shortestTime = UINT64_MAX;
+    uint64_t longestTime = 0;
+    unsigned sectorCount = 0;
+    unsigned cacheHitCount = 0;
+#endif
+
     while (true) {
         // Update latching, output SENS
-        if (mutex_try_enter(&g_mechaconMutex, 0)) {
-            mechCommand.updateMechSens();
-            mutex_exit(&g_mechaconMutex);
-        }
 
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
@@ -157,23 +162,19 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
         // Data sent via DMA, load the next sector
         if (bufferForDMA != bufferForSDRead) {
-            uint64_t sector_change_timer = time_us_64();
-            while ((time_us_64() - sector_change_timer) < 100) {
-                const int sector = g_driveMechanics.getSector();
-                if (currentSector != sector) {
-                    currentSector = sector;
-                    sector_change_timer = time_us_64();
-                }
-            }
+#if DEBUG_I2S
+            startTime = time_us_64();
+#endif
 
             // Load the next sector
             // Sector cache lookup/update
             int cache_hit = -1;
-            int16_t *sectorData;
-
             for (size_t i = 0; i < c_sectorCacheSize; i++) {
                 if (cachedSectors[i] == currentSector) {
                     cache_hit = i;
+#if DEBUG_I2S
+                    cacheHitCount++;
+#endif
                     break;
                 }
             }
@@ -186,7 +187,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
                 roundRobinCacheIndex = (roundRobinCacheIndex + 1) % c_sectorCacheSize;
             }
 
-            sectorData = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
+            int16_t const *sectorData = reinterpret_cast<int16_t *>(cdSamples[cache_hit]);
 
             // Copy CD samples to PIO buffer
             for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
@@ -207,8 +208,19 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
                 pioSamples[bufferForSDRead][i] = i2sData;
             }
 
+#if DEBUG_I2S
             loadedSector[bufferForSDRead] = currentSector;
             bufferForSDRead = (bufferForSDRead + 1) % 2;
+            endTime = time_us_64();
+            totalTime = endTime - startTime;
+            if (totalTime < shortestTime) {
+                shortestTime = totalTime;
+            }
+            if (totalTime > longestTime) {
+                longestTime = totalTime;
+            }
+            sectorCount++;
+#endif
         }
 
         // Start the next transfer if the DMA channel is not busy
@@ -229,6 +241,17 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
             dma_channel_start(dmaChannel);
         }
+
+#if DEBUG_I2S
+        if (sectorCount >= 100) {
+            DEBUG_PRINT("min: %lluus, max: %lluus cache hits: %u/%u\n", shortestTime, longestTime, cacheHitCount,
+                        sectorCount);
+            sectorCount = 0;
+            shortestTime = UINT64_MAX;
+            longestTime = 0;
+            cacheHitCount = 0;
+        }
+#endif
     }
     __builtin_unreachable();
 }

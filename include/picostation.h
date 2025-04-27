@@ -45,7 +45,7 @@ extern pseudoatomic<bool> g_coreReady[2];
 extern unsigned int g_soctOffset;
 extern unsigned int g_subqOffset;
 
-extern bool g_subqDelay;
+extern bool g_subqPending;
 extern int g_targetPlaybackSpeed;
 extern unsigned int g_audioCtrlMode;
 

@@ -218,7 +218,8 @@ inline void picostation::MechCommand::spindleControl(const uint32_t latched) {
 
     m_sensData[SENS::GFS] = (subCommand == SpindleCommands::CLVA);
     if (!m_sensData[SENS::GFS]) {
-        g_subqDelay = false;
+        g_subqPending = false;
+        pio_sm_clear_fifos(PIOInstance::SUBQ, SM::SUBQ);
     }
 
     /*switch (subCommand)

@@ -26,6 +26,7 @@ void picostation::SubQ::printf_subq(const uint8_t *data) {
 void picostation::SubQ::start_subq(const int sector) {
     const SubQ::Data tracksubq = m_discImage->generateSubQ(sector);
     subq_program_init(PIOInstance::SUBQ, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
+    pio_sm_clear_fifos(PIOInstance::SUBQ, SM::SUBQ);
     pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, true);
 
     const uint sub[3] = {
