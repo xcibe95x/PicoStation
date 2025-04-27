@@ -6,7 +6,6 @@
 
 int main() {
     set_sys_clock_khz(271200, true);
-    sleep_ms(5);
 
     initPseudoAtomics();
 
