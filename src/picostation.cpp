@@ -32,7 +32,7 @@
 static picostation::I2S m_i2s;
 static picostation::MechCommand m_mechCommand;
 
-bool picostation::g_subqPending = false;  // core0: r/w
+bool picostation::g_subqDelay = false;  // core0: r/w
 
 static int s_currentPlaybackSpeed = 1;
 int picostation::g_targetPlaybackSpeed = 1;  // core0: r/w
@@ -99,6 +99,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
 
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
     SubQ subq(&g_discImage);
+    uint64_t subqDelayTime = 0;
 
     g_coreReady[0] = true;
     while (!g_coreReady[1].Load()) {
@@ -133,21 +134,24 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
         } else if (!g_driveMechanics.isSledStopped()) {
             g_driveMechanics.moveSled(m_mechCommand);
         } else if (m_mechCommand.getSens(SENS::GFS)) {
-            if (g_subqPending) {
-                g_subqPending = false;
-                subq.start_subq(currentSector);
+            if (g_subqDelay) {
+                if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) {
+                    g_subqDelay = false;
+                    subq.start_subq(currentSector);
 
-                gpio_put(Pin::SCOR, 1);
-                add_alarm_in_us(
-                    135,
-                    [](alarm_id_t id, void *user_data) -> int64_t {
-                        gpio_put(Pin::SCOR, 0);
-                        return 0;
-                    },
-                    NULL, true);
+                    gpio_put(Pin::SCOR, 1);
+                    add_alarm_in_us(
+                        135,
+                        [](alarm_id_t id, void *user_data) -> int64_t {
+                            gpio_put(Pin::SCOR, 0);
+                            return 0;
+                        },
+                        NULL, true);
+                }
             } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
-                g_subqPending = true;
+                g_subqDelay = true;
+                subqDelayTime = m_i2s.getLastSectorTime();
             }
         }
     }
@@ -288,7 +292,7 @@ void picostation::reset() {
     updatePlaybackSpeed();
 
     mechacon_program_init(PIOInstance::MECHACON, SM::MECHACON, s_mechachonOffset, Pin::CMD_DATA);
-    g_subqPending = false;
+    g_subqDelay = false;
     m_mechCommand.setSoct(false);
 
     gpio_put(Pin::SCOR, 0);
