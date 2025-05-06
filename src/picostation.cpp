@@ -7,7 +7,6 @@
 #include "disc_image.h"
 #include "drive_mechanics.h"
 #include "hardware/pwm.h"
-#include "hardware/vreg.h"
 #include "i2s.h"
 #include "logging.h"
 #include "main.pio.h"
@@ -170,11 +169,6 @@ void picostation::initHW() {
     sleep_ms(1250);
 #endif
     DEBUG_PRINT("Initializing...\n");
-
-    vreg_set_voltage(VREG_VOLTAGE_1_15);
-    sleep_ms(100);
-
-    srand(time_us_32());
 
     mutex_init(&g_mechaconMutex);
 
