@@ -135,29 +135,29 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
             g_fileListingState = FileListingStates::IDLE;
             break;
         case Command::COMMAND_GOTO_ROOT:
-            picostation::debug::print("GOTO_ROOT\n");
+            DEBUG_PRINT("GOTO_ROOT\n");
             g_fileListingState = FileListingStates::GOTO_ROOT;
             break;
         case Command::COMMAND_GOTO_PARENT: 
-            picostation::debug::print("GOTO_PARENT\n");
+            DEBUG_PRINT("GOTO_PARENT\n");
             g_fileListingState = FileListingStates::GOTO_PARENT;
             break;
         case Command::COMMAND_GOTO_DIRECTORY:
-            picostation::debug::print("GOTO_DIRECTORY\n");
+            DEBUG_PRINT("GOTO_DIRECTORY\n");
             g_fileListingState = FileListingStates::GOTO_DIRECTORY;
             break;
         case Command::COMMAND_GET_NEXT_CONTENTS: 
-            //picostation::debug::print("GET_NEXT_CONTENTS\n");
+            //DEBUG_PRINT("GET_NEXT_CONTENTS\n");
             g_fileListingState = FileListingStates::GET_NEXT_CONTENTS;
             break;
         case Command::COMMAND_MOUNT_FILE:
-            picostation::debug::print("MOUNT_FILE\n");
+            DEBUG_PRINT("MOUNT_FILE\n");
             printf("disc image change: %x %x\n", subCommand, arg);
             g_fileListingState = FileListingStates::MOUNT_FILE;
             g_imageIndex = arg; //todo use g_fileArg instead
             break;
         case Command::COMMAND_IO_COMMAND:
-            picostation::debug::print("COMMAND_IO_COMMAND %x\n", arg);
+            DEBUG_PRINT("COMMAND_IO_COMMAND %x\n", arg);
             if (arg == 1)
             {
                 ioCommand = 1;
@@ -166,13 +166,13 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
             }
             break;
         case Command::COMMAND_IO_DATA:
-            picostation::debug::print("COMMAND_IO_DATA %x\n", arg);
+            DEBUG_PRINT("COMMAND_IO_DATA %x\n", arg);
             if (ioCommand == 1)
             {
                 uint8_t value1 = (uint8_t)((arg >> 8) & 0xFF);
                 if (value1 == 0)
                 {
-                    picostation::debug::print("GOT GAMEID %s\n", gameId);
+                    DEBUG_PRINT("GOT GAMEID %s\n", gameId);
                     break;
                 }
                 if (gameIdIndex < gameIdLen) {
@@ -183,7 +183,7 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
                 uint8_t value2 = (uint8_t)(arg & 0xFF);
                 if (value2 == 0)
                 {
-                    picostation::debug::print("GOT GAMEID %s\n", gameId);
+                    DEBUG_PRINT("GOT GAMEID %s\n", gameId);
                     break;
                 }
                 if (gameIdIndex < gameIdLen) {
