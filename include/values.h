@@ -39,7 +39,7 @@ enum : unsigned int {
     EXP_BUTTON1 = GPIO_EXP_BUTTON1,
     EXP_BUTTON2 = GPIO_EXP_BUTTON2
 };
-constexpr unsigned int allPins[] = {XLAT, SQCK, LMTSW, SCEX_DATA, DOOR, RESET,    SENS,  DA15,
+constexpr unsigned int allPins[] = {SD_CS, XLAT, SQCK, LMTSW, SCEX_DATA, DOOR, RESET, SENS, DA15,
                                     DA16, LRCK, SCOR,  SQSO,      CLK,  CMD_DATA, CMD_CK};
 };  // namespace Pin
 // C2PO, WFCK is always GND

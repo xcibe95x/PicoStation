@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "f_util.h"
 #include "ff.h"
 #include "listingBuilder.h"
 #include "debug.h"

@@ -1,4 +1,6 @@
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/")
+
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -98,7 +100,7 @@ target_sources(
     src/cmd.cpp
     src/disc_image.cpp
     src/drive_mechanics.cpp
-    src/hw_config.cpp
+    #src/hw_config.cpp
     src/i2s.cpp
     src/main.cpp
     src/modchip.cpp
@@ -122,7 +124,9 @@ target_include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/third_party
 )
 
-add_subdirectory(third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src build)
+#add_subdirectory(third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src build)
+add_subdirectory(third_party/SD-fatfs build)
+
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
@@ -135,14 +139,19 @@ target_link_libraries(
     hardware_pio
     hardware_pwm
     hardware_vreg
-    no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
+    #no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
+    SD-fatfs
     pico_bootrom
     pico_multicore
     pico_stdlib
 )
 
-target_include_directories(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico BEFORE INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/include
+#target_include_directories(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico BEFORE INTERFACE
+#    ${CMAKE_CURRENT_LIST_DIR}/include
+#)
+
+target_include_directories(SD-fatfs BEFORE INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/source
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})

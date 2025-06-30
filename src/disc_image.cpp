@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "f_util.h"
 #include "ff.h"
 #include "logging.h"
 #include "picostation.h"
@@ -299,7 +298,7 @@ static struct CueFile *fileopen(struct CueFile *file, struct CueScheduler *sched
     strcpy(fullpath, context->parentPath);
     strcat(fullpath, "/");
     strcat(fullpath, filename);
-    return create_posix_file(file, fullpath, "r");
+    return create_posix_file(file, fullpath, FA_READ);
 }
 
 FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
@@ -313,7 +312,7 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
     struct CueFile cue;
     struct CueParser parser;
 
-    if (!create_posix_file(&cue, targetCue, "r")) {
+    if (!create_posix_file(&cue, targetCue, FA_READ)) {
         DEBUG_PRINT("create_posix_file failed for: %s.\n", targetCue);
     }
     cue.cfilename = targetCue;

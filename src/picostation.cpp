@@ -112,7 +112,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                 tight_loop_contents();
             }
             reset();
-        }
+		}
 
         // Update latching, output SENS
         m_mechCommand.updateMechSens();
@@ -169,6 +169,7 @@ void picostation::initHW() {
     stdio_set_chars_available_callback(NULL, NULL);
     sleep_ms(1250);
 #endif
+	
     DEBUG_PRINT("Initializing...\n");
 
     mutex_init(&g_mechaconMutex);
@@ -176,7 +177,10 @@ void picostation::initHW() {
     for (const unsigned int pin : Pin::allPins) {
         gpio_init(pin);
     }
-
+    
+    gpio_put(Pin::SD_CS, 1);
+    gpio_set_dir(Pin::SD_CS, GPIO_OUT);
+    
     gpio_set_dir(Pin::XLAT, GPIO_IN);
     gpio_set_dir(Pin::SQCK, GPIO_IN);
     gpio_set_dir(Pin::LMTSW, GPIO_OUT);
@@ -292,22 +296,24 @@ void picostation::reset() {
 
     gpio_put(Pin::SCOR, 0);
     gpio_put(Pin::SQSO, 0);
-
-    uint64_t startTime = time_us_64();
-
-    while ((time_us_64() - startTime) < 30000) {
-        if (gpio_get(Pin::RESET) == 0) {
-            startTime = time_us_64();
-        }
-    }
-
-    while ((time_us_64() - startTime) < 30000) {
-        if (gpio_get(Pin::CMD_CK) == 0) {
-            startTime = time_us_64();
-        }
-    }
+	
+	uint64_t startTime = time_us_64();
+	
+	while ((time_us_64() - startTime) < 30000) {
+		if (gpio_get(Pin::RESET) == 0) {
+			startTime = time_us_64();
+		}
+	}
+	
+	while ((time_us_64() - startTime) < 30000) {
+		if (gpio_get(Pin::CMD_CK) == 0) {
+			startTime = time_us_64();
+		}
+	}
 
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
-    s_resetPending = false;
-    gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+    
+	s_resetPending = false;
+	gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
 }
+
