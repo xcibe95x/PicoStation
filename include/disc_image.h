@@ -22,7 +22,7 @@ class DiscImage {
         USBStorage,
     };
 
-    void buildSector(const int sector, uint8_t *buffer, uint8_t *userData, uint16_t userDataSize = 2324);
+    void buildSector(const int sector, uint32_t *buffer, uint16_t *userData, const uint16_t *scramling);
     FRESULT load(const TCHAR *targetCue);
     SubQ::Data generateSubQ(const int sector);
     bool hasData() { return m_hasData; };
@@ -30,9 +30,9 @@ class DiscImage {
         return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA;
     };
     void makeDummyCue();
-    void readSector(void *buffer, const int sector, DataLocation location);
-    void readSectorRAM(void *buffer, const int sector);
-    void readSectorSD(void *buffer, const int sector);
+    void readSector(void *buffer, const int sector, DataLocation location, const uint16_t *scramling);
+    void readSectorRAM(void *buffer, const int sector, const uint16_t *scramling);
+    void readSectorSD(void *buffer, const int sector, const uint16_t *scramling);
 
   private:
     CueDisc m_cueDisc;

@@ -100,14 +100,12 @@ target_sources(
     src/cmd.cpp
     src/disc_image.cpp
     src/drive_mechanics.cpp
-    #src/hw_config.cpp
     src/i2s.cpp
     src/main.cpp
     src/modchip.cpp
     src/picostation.cpp
     src/subq.cpp
     src/utils.cpp
-    src/debug.cpp
     src/directory_listing.cpp
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
@@ -124,7 +122,6 @@ target_include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/third_party
 )
 
-#add_subdirectory(third_party/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src build)
 add_subdirectory(third_party/SD-fatfs build)
 
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
@@ -139,16 +136,11 @@ target_link_libraries(
     hardware_pio
     hardware_pwm
     hardware_vreg
-    #no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
     SD-fatfs
     pico_bootrom
     pico_multicore
     pico_stdlib
 )
-
-#target_include_directories(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico BEFORE INTERFACE
-#    ${CMAKE_CURRENT_LIST_DIR}/include
-#)
 
 target_include_directories(SD-fatfs BEFORE INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/source

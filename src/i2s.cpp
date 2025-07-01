@@ -26,10 +26,9 @@
 #include "subq.h"
 #include "values.h"
 #include "listingBuilder.h"
-#include "debug.h"
 
 #if DEBUG_I2S
-#define DEBUG_PRINT(...) picostation::debug::print(__VA_ARGS__)
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
@@ -40,10 +39,14 @@ pseudoatomic<int> g_listingMode;
 picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::RAM;
 static FATFS s_fatFS;
 
-constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
-    std::array<uint16_t, 1176> cdScramblingLUT = {0};
+static uint16_t *generateScramblingLUT() {
+    static uint16_t ScramblingLUT[1176] = {0};
     int shift = 1;
-
+	
+	for (int i = 0; i < 6; i++) {
+		ScramblingLUT[i] = 0;
+	}
+	
     for (size_t i = 6; i < 1176; i++) {
         uint8_t upper = shift & 0xFF;
         for (size_t j = 0; j < 8; j++) {
@@ -53,7 +56,7 @@ constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
 
         uint8_t lower = shift & 0xFF;
 
-        cdScramblingLUT[i] = (lower << 8) | upper;
+        ScramblingLUT[i] = (lower << 8) | upper;
 
         for (size_t j = 0; j < 8; j++) {
             unsigned bit = ((shift & 1) ^ ((shift & 2) >> 1)) << 15;
@@ -61,7 +64,7 @@ constexpr std::array<uint16_t, 1176> picostation::I2S::generateScramblingLUT() {
         }
     }
 
-    return cdScramblingLUT;
+    return ScramblingLUT;
 }
 
 void picostation::I2S::mountSDCard() {
@@ -86,10 +89,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
 [[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
     picostation::ModChip modChip;
-
-    static uint16_t cdSamples[c_cdSamplesBytes / sizeof(uint16_t)];  // Make static to move off stack
-    static uint32_t pioSamples[2][(c_cdSamplesBytes * 2) / sizeof(uint32_t)];
-    static constexpr auto cdScramblingLUT = generateScramblingLUT();
+    static uint32_t pioSamples[2][1176];
+    static uint16_t *cdScramblingLUT = generateScramblingLUT();
 
     int bufferForDMA = 1;
     int bufferForSDRead = 0;
@@ -101,7 +102,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     g_imageIndex = -1;
     menu_active = true;
 
-    int dmaChannel = initDMA(pioSamples[0], c_cdSamplesSize * 2);
+    int dmaChannel = initDMA(pioSamples[0], 1176);
 
     g_coreReady[1] = true;          // Core 1 is ready
     while (!g_coreReady[0].Load())  // Wait for Core 0 to be ready
@@ -165,72 +166,63 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				bufferForDMA = 1;
 				bufferForSDRead = 0;
 				
-				memset(cdSamples, 0, sizeof(cdSamples));
-				memset(pioSamples, 0, sizeof(pioSamples));
+				//memset(pioSamples, 0, sizeof(pioSamples));
 			}
-
-			if (g_fileListingState.Load() != FileListingStates::IDLE) {
-				if (g_fileListingState.Load() == FileListingStates::GOTO_ROOT) {
+			
+			switch (g_fileListingState.Load())
+			{
+				case FileListingStates::GOTO_ROOT:
 					//printf("Processing GOTO_ROOT\n");
 					picostation::DirectoryListing::gotoRoot();
 					picostation::DirectoryListing::getDirectoryEntries(0);
-				} else  if (g_fileListingState.Load() == FileListingStates::GOTO_PARENT) {
+					break;
+				
+				case FileListingStates::GOTO_PARENT:
 					//printf("Processing GOTO_PARENT\n");
 					picostation::DirectoryListing::gotoParentDirectory();
 					picostation::DirectoryListing::getDirectoryEntries(0);
-				} else  if (g_fileListingState.Load() == FileListingStates::GOTO_DIRECTORY) {
+					break;
+				
+				case FileListingStates::GOTO_DIRECTORY:
 					//printf("Processing GOTO_DIRECTORY %i\n", g_fileArg.Load());
 					picostation::DirectoryListing::gotoDirectory(g_fileArg.Load());
 					picostation::DirectoryListing::getDirectoryEntries(0);
-				} else  if (g_fileListingState.Load() == FileListingStates::GET_NEXT_CONTENTS) {
+					break;
+				
+				case FileListingStates::GET_NEXT_CONTENTS:
 					picostation::DirectoryListing::getDirectoryEntries(g_fileArg.Load());
-				} else  if (g_fileListingState.Load() == FileListingStates::MOUNT_FILE) {
+					break;
+				
+				case FileListingStates::MOUNT_FILE:
 					//printf("Processing MOUNT_FILE\n");
 					// move mounting here;
 					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
 					gpio_put(Pin::RESET, 0);
 					gpio_set_dir(Pin::RESET, GPIO_OUT);
-					sleep_ms(300);
+					sleep_ms(500);
 					gpio_put(Pin::RESET, 1);
 					gpio_set_dir(Pin::RESET, GPIO_IN);
 					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
 					
 					continue;
-				}
+					break;
+				
+				default:
+					break;
 			}
 		}
+		
         // Data sent via DMA, load the next sector
         if (bufferForDMA != bufferForSDRead) {
 #if DEBUG_I2S
             startTime = time_us_64();
 #endif
             if (menu_active && (currentSector - c_leadIn - c_preGap) == 100 && g_fileListingState.Load() == FileListingStates::IDLE) {
-
-                g_discImage.buildSector(currentSector - c_leadIn, (uint8_t *) cdSamples, picostation::DirectoryListing::getFileListingData(), 2324);
-                //printf("Sector 100 load\n");
-
+                g_discImage.buildSector(currentSector - c_leadIn, pioSamples[bufferForSDRead], 
+										(uint16_t *) picostation::DirectoryListing::getFileListingData(), cdScramblingLUT);
             } else {
                 // Load the next sector
-                g_discImage.readSector(cdSamples, currentSector - c_leadIn, s_dataLocation);
-            }
-
-            // Copy CD samples to PIO buffer
-            for (size_t i = 0; i < c_cdSamplesSize * 2; i++) {
-                uint32_t i2sData;
-
-                if (g_discImage.isCurrentTrackData()) {
-                    // Scramble the data
-                    i2sData = (cdSamples[i] ^ cdScramblingLUT[i]) << 8;
-                } else {
-                    // Audio track, just copy the data
-                    i2sData = (cdSamples[i]) << 8;
-                }
-
-                if (i2sData & 0x100) {
-                    i2sData |= 0xFF;
-                }
-
-                pioSamples[bufferForSDRead][i] = i2sData;
+                g_discImage.readSector(pioSamples[bufferForSDRead], currentSector - c_leadIn, s_dataLocation, cdScramblingLUT);
             }
 
             loadedSector[bufferForSDRead] = currentSector;

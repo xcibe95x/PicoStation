@@ -14,10 +14,9 @@
 #include "third_party/iec-60908b/edcecc.h"
 #include "third_party/posix_file.h"
 #include "values.h"
-#include "debug.h"
 
 #if DEBUG_CUE
-#define DEBUG_PRINT(...) picostation::debug::print(__VA_ARGS__)
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
@@ -69,7 +68,7 @@ static constexpr uint16_t crc16_lut[256] = {
 
 static uint8_t s_userData[c_cdSamplesBytes] = {0};
 
-static MSF sectorToMSF(const int sector) {
+static MSF __time_critical_func(sectorToMSF)(const int sector) {
     MSF msf;
     msf.mm = abs(sector / 75 / 60);
     msf.ss = abs((sector / 75) % 60);
@@ -85,7 +84,7 @@ static inline int toBCD(const int in) {
     }
 }
 
-static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
+static void __time_critical_func(getParentPath)(const TCHAR *path, TCHAR *parentPath) {
     strcpy(parentPath, path);
     char *lastSlash = strrchr(parentPath, '/');
     char *lastBackslash = strrchr(parentPath, '\\');
@@ -99,44 +98,64 @@ static void getParentPath(const TCHAR *path, TCHAR *parentPath) {
     }
 }
 
-void picostation::DiscImage::buildSector(const int sector, uint8_t *buffer, uint8_t *userData, uint16_t userDataSize) {
-    // Clear the buffer to avoid garbage data
-    memset(buffer, 0, c_cdSamplesBytes);
-
-    // Sync - 12 bytes
-    buffer[0] = 0;
-    memset(buffer + 1, 0xFF, 10);
-    buffer[11] = 0;
-
-    // Header - 4 bytes
-    const MSF msf = sectorToMSF(sector);
-    buffer[12] = toBCD(msf.mm);  // M Minutes
-    buffer[13] = toBCD(msf.ss);  // S Seconds
-    buffer[14] = toBCD(msf.ff);  // F Frame/Sectors
-    buffer[15] = 0x02;           // Mode = 2
-
-    // Sub-Header - 8 bytes (Green book)
-    // buffer[16] = 0;                // File number
-    // buffer[17] = 0;                // Channel number
-    buffer[18] = (Submode::Form);  // Submode = Form 2, 2324 bytes of user data
-    // buffer[19] = 0;                // Coding information
-    // buffer[20] = 0;                // File number
-    // buffer[21] = 0;                // Channel number
-    // buffer[22] = 0;                // Submode
-    // buffer[23] = 0;                // Coding information
-
-    memcpy(buffer + 24, userData, userDataSize);
+void __time_critical_func(picostation::DiscImage::buildSector)(const int sector, uint32_t *buffer, uint16_t *userData, const uint16_t *scramling) {
+	uint32_t tmp;
+	static uint8_t header[24] = {
+		// Sync - 12 bytes
+		0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
+		// Header - 4 bytes
+		0, 0, 0, 2,
+		// Sub-Header - 8 bytes (Green book)
+		0, 0, 0, 0, 0, 0, 0, 0
+	};
+	
+	const MSF msf = sectorToMSF(sector);
+	
+	header[12] = toBCD(msf.mm);
+	header[13] = toBCD(msf.ss);
+	header[14] = toBCD(msf.ff);
+	
+	header[18] = (Submode::Form);
+	
+	uint16_t *src = (uint16_t *) header;
+	
+	for (int i = 0; i < 12; i++) {
+		tmp = (src[i] ^ scramling[i]) << 8;
+		
+		if (tmp & 0x100) {
+			tmp |= 0xFF;
+		}
+		
+		buffer[i] = tmp;
+	}
+    
+	for (int i = 12; i < 1174; i++) {
+		tmp = (*userData++ ^ scramling[i]) << 8;
+		
+		if (tmp & 0x100) {
+			tmp |= 0xFF;
+		}
+		
+		buffer[i] = tmp;
+	}
 
     // EDC/ECC - 4 bytes
     // compute_edcecc(buffer);
     // Don't need to compute EDC/ECC for now, just leave it as 0
-    // buffer[2348] = 0;
-    // buffer[2349] = 0;
-    // buffer[2350] = 0;
-    // buffer[2351] = 0;
+    tmp = scramling[1174] << 8;
+    if (tmp & 0x100) {
+		tmp |= 0xFF;
+	}
+    buffer[1174] = tmp;
+    
+    tmp = scramling[1175] << 8;
+    if (tmp & 0x100) {
+		tmp |= 0xFF;
+	}
+	buffer[1175] = tmp;
 }
 
-picostation::SubQ::Data picostation::DiscImage::generateSubQ(const int sector) {
+picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSubQ)(const int sector) {
     SubQ::Data subqdata;
 
     int sector_track;
@@ -292,7 +311,7 @@ static void parser_cb(struct CueParser *parser, struct CueScheduler *scheduler, 
     }
 }
 
-static struct CueFile *fileopen(struct CueFile *file, struct CueScheduler *scheduler, const char *filename) {
+static struct CueFile *__time_critical_func(fileopen)(struct CueFile *file, struct CueScheduler *scheduler, const char *filename) {
     Context *context = reinterpret_cast<Context *>(scheduler->opaque);
     TCHAR fullpath[256];
     strcpy(fullpath, context->parentPath);
@@ -301,7 +320,7 @@ static struct CueFile *fileopen(struct CueFile *file, struct CueScheduler *sched
     return create_posix_file(file, fullpath, FA_READ);
 }
 
-FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
+FRESULT __time_critical_func(picostation::DiscImage::load)(const TCHAR *targetCue) {
     // To-do: Need alternate code paths here for parsing cue from alternate sources.
     struct CueScheduler scheduler;
     Scheduler_construct(&scheduler);
@@ -342,7 +361,7 @@ FRESULT picostation::DiscImage::load(const TCHAR *targetCue) {
     return FR_OK;
 }
 
-void picostation::DiscImage::makeDummyCue() {
+void __time_critical_func(picostation::DiscImage::makeDummyCue)() {
     // Create a dummy cue disc with a single data track, as well as lead-in and lead-out tracks.
 
     constexpr uint32_t c_sectorCount = (98 * 75 * 60) + (57 * 75) + 74;  // 98:57:74(mm:ss:ff) leaving room for 2 sec pre-gap and lead-in
@@ -376,50 +395,36 @@ void picostation::DiscImage::makeDummyCue() {
     }
 }
 
-void picostation::DiscImage::readSector(void *buffer, const int sector, DataLocation location) {
-    const int adjustedSector = sector - c_preGap;
-    if (adjustedSector >= 0 && adjustedSector < c_licenseSectors) {
-        // License sectors, read from our embedded image
-        memcpy(buffer, &loaderImage[adjustedSector * c_cdSamplesBytes], c_cdSamplesBytes);
-        return;
-    }
-
+void __time_critical_func(picostation::DiscImage::readSector)(void *buffer, const int sector, DataLocation location, const uint16_t *scramling) {
     switch (location) {
         case DataLocation::SDCard:
-            readSectorSD(buffer, sector);
+            readSectorSD(buffer, sector, scramling);
             break;
         case DataLocation::RAM:
-            readSectorRAM(buffer, sector);
+            readSectorRAM(buffer, sector, scramling);
             break;
-        /*case DataLocation::USBSerial:
-            // Handle USB serial read as needed
-            break;
-        case DataLocation::USBStorage:
-            // Handle USB storage read as needed
-            break;*/
         default:
-            // Unimplemented, send filler data
-            buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
             break;
     }
 }
 
-void picostation::DiscImage::readSectorRAM(void *buffer, const int sector) {
+void __time_critical_func(picostation::DiscImage::readSectorRAM)(void *buffer, const int sector, const uint16_t *scramling) {
     const int adjustedSector = sector - c_preGap;
     size_t targetOffset = adjustedSector * c_cdSamplesBytes;
+    
     if (targetOffset >= 0 && targetOffset <= loaderImageSize - c_cdSamplesBytes) {
-        memcpy(buffer, &loaderImage[targetOffset], c_cdSamplesBytes);
-    } else {
-        buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
+		scramble_data((uint32_t *) buffer, (uint16_t *) &loaderImage[targetOffset], scramling, 1176);
+    } 
+    else {
+        buildSector(sector, static_cast<uint32_t *>(buffer), (uint16_t *) s_userData, scramling);
     }
 }
 
-void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
+void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, const int sector, const uint16_t *scramling) {
     FRESULT fr;
     UINT br = 0;
 
     const int adjustedSector = sector - c_preGap;
-
     for (size_t i = 1; i <= m_cueDisc.trackCount + 1; i++) {
         if (adjustedSector < m_cueDisc.tracks[i + 1].indices[0]) {
             if (m_cueDisc.tracks[i].file->opaque) {
@@ -428,33 +433,25 @@ void picostation::DiscImage::readSectorSD(void *buffer, const int sector) {
                     fr = f_lseek((FIL *)m_cueDisc.tracks[i].file->opaque, seekBytes);
                     if (FR_OK != fr) {
                         f_rewind((FIL *)m_cueDisc.tracks[i].file->opaque);
-                        // panic("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
                         DEBUG_PRINT("f_lseek(%s) error: (%d)\n", FRESULT_str(fr), fr);
                     }
                 }
 
-                fr = f_read((FIL *)m_cueDisc.tracks[i].file->opaque, buffer, c_cdSamplesBytes, &br);
+                fr = f_read_scramble((FIL *)m_cueDisc.tracks[i].file->opaque, buffer, c_cdSamplesBytes, &br, scramling, isCurrentTrackData());
+                //static uint16_t tmpbuf[1176];
+                //fr = f_read((FIL *)m_cueDisc.tracks[i].file->opaque, tmpbuf, 2352, &br);
                 if (FR_OK != fr) {
-                    // panic("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
                     DEBUG_PRINT("f_read(%s) error: (%d)\n", FRESULT_str(fr), fr);
-                } else if (br != c_cdSamplesBytes) {
-                    // DEBUG_PRINT("Logical track: %d, sector: %d, read: %d\n", i, sector, br);
-                    // DEBUG_PRINT("Seek bytes: %llu\n", seekBytes);
-                    // DEBUG_PRINT("f_read(%s) error: (%d) read: %d\n", FRESULT_str(fr), fr, br);
                 }
+                //scramble_data((uint32_t *) buffer, tmpbuf, scramling, 1176);
                 break;
             }
         }
     }
 
-    if (br < c_cdSamplesBytes) {
+    /*if (br < c_cdSamplesBytes) {
         buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
         br = c_cdSamplesBytes;
-    }
-
-    /*if (br < c_cdSamplesBytes) {
-        memset(static_cast<uint8_t *>(buffer) + br, 0, c_cdSamplesBytes - br);
-        DEBUG_PRINT("Bytes read less than sampleBytes by %d\n", c_cdSamplesBytes - br);
     }*/
-    // DEBUG_PRINT("Sector not found: %d\n", sector);
 }
+

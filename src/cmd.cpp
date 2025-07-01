@@ -13,10 +13,9 @@
 #include "pseudo_atomics.h"
 #include "values.h"
 #include "directory_listing.h"
-#include "debug.h"
 
 #if DEBUG_CMD
-#define DEBUG_PRINT(...) picostation::debug::print(__VA_ARGS__)
+#define DEBUG_PRINT(...) print(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif

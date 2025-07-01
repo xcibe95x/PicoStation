@@ -14,7 +14,7 @@
 #include <stdlib.h>		/* with POSIX API */
 
 
-void* ff_memalloc (	/* Returns pointer to the allocated memory block (null if not enough core) */
+void* __not_in_flash_func(ff_memalloc) (	/* Returns pointer to the allocated memory block (null if not enough core) */
 	UINT msize		/* Number of bytes to allocate */
 )
 {
@@ -22,7 +22,7 @@ void* ff_memalloc (	/* Returns pointer to the allocated memory block (null if no
 }
 
 
-void ff_memfree (
+void __not_in_flash_func(ff_memfree) (
 	void* mblock	/* Pointer to the memory block to free (no effect if null) */
 )
 {
@@ -76,7 +76,7 @@ static osMutexId Mutex[FF_VOLUMES + 1];	/* Table of mutex ID */
 /  fails with FR_INT_ERR.
 */
 
-int ff_mutex_create (	/* Returns 1:Function succeeded or 0:Could not create the mutex */
+int __not_in_flash_func(ff_mutex_create) (	/* Returns 1:Function succeeded or 0:Could not create the mutex */
 	int vol				/* Mutex ID: Volume mutex (0 to FF_VOLUMES - 1) or system mutex (FF_VOLUMES) */
 )
 {
@@ -117,7 +117,7 @@ int ff_mutex_create (	/* Returns 1:Function succeeded or 0:Could not create the 
 /  semaphore of the volume created with ff_mutex_create function.
 */
 
-void ff_mutex_delete (	/* Returns 1:Function succeeded or 0:Could not delete due to an error */
+void __not_in_flash_func(ff_mutex_delete) (	/* Returns 1:Function succeeded or 0:Could not delete due to an error */
 	int vol				/* Mutex ID: Volume mutex (0 to FF_VOLUMES - 1) or system mutex (FF_VOLUMES) */
 )
 {
@@ -149,7 +149,7 @@ void ff_mutex_delete (	/* Returns 1:Function succeeded or 0:Could not delete due
 /  When a 0 is returned, the file function fails with FR_TIMEOUT.
 */
 
-int ff_mutex_take (	/* Returns 1:Succeeded or 0:Timeout */
+int __not_in_flash_func(ff_mutex_take) (	/* Returns 1:Succeeded or 0:Timeout */
 	int vol			/* Mutex ID: Volume mutex (0 to FF_VOLUMES - 1) or system mutex (FF_VOLUMES) */
 )
 {
@@ -182,7 +182,7 @@ int ff_mutex_take (	/* Returns 1:Succeeded or 0:Timeout */
 /* This function is called on leave file functions to unlock the volume.
 */
 
-void ff_mutex_give (
+void __not_in_flash_func(ff_mutex_give) (
 	int vol			/* Mutex ID: Volume mutex (0 to FF_VOLUMES - 1) or system mutex (FF_VOLUMES) */
 )
 {

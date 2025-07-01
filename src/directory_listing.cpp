@@ -8,13 +8,12 @@
 
 #include "ff.h"
 #include "listingBuilder.h"
-#include "debug.h"
 
-//#if DEBUG_FILEIO
-//#define DEBUG_PRINT(...) picostation::debug::print(__VA_ARGS__)
-// #else
-// #define DEBUG_PRINT(...) while (0)
-// #endif
+#if DEBUG_FILEIO
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while (0)
+#endif
 
 namespace picostation {
 
@@ -41,7 +40,7 @@ bool DirectoryListing::gotoDirectory(const uint32_t index) {
     {
         combinePaths(currentDirectory, newFolder, currentDirectory);
     }
-    //picostation::debug::print("gotoDirectory: %s\n", currentDirectory);
+    DEBUG_PRINT("gotoDirectory: %s\n", currentDirectory);
     return result;
 }
 
@@ -120,7 +119,7 @@ bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
     FILINFO nextEntry;
     FRESULT res = f_opendir(&dir, currentDirectory);
     if (res != FR_OK) {
-        //picostation::debug::print("f_opendir error: %s (%d)\n", FRESULT_str(res), res);
+        DEBUG_PRINT("f_opendir error: %s (%d)\n", FRESULT_str(res), res);
         return false;
     }
 
@@ -184,7 +183,7 @@ bool DirectoryListing::getDirectoryEntry(const uint32_t index, char* filePath) {
     FILINFO nextEntry;
     FRESULT res = f_opendir(&dir, currentDirectory);
     if (res != FR_OK) {
-        //picostation::debug::print("f_opendir error: %s (%d)\n", FRESULT_str(res), res);
+        DEBUG_PRINT("f_opendir error: %s (%d)\n", FRESULT_str(res), res);
         return false;
     }
 
