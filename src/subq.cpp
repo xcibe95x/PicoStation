@@ -28,7 +28,7 @@ void picostation::SubQ::start_subq(const int sector) {
     subq_program_init(PIOInstance::SUBQ, SM::SUBQ, g_subqOffset, Pin::SQSO, Pin::SQCK);
     pio_sm_clear_fifos(PIOInstance::SUBQ, SM::SUBQ);
     pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, true);
-
+    
     const uint sub[3] = {
         (uint)((tracksubq.raw[3] << 24) | (tracksubq.raw[2] << 16) | (tracksubq.raw[1] << 8) | (tracksubq.raw[0])),
         (uint)((tracksubq.raw[7] << 24) | (tracksubq.raw[6] << 16) | (tracksubq.raw[5] << 8) | (tracksubq.raw[4])),
@@ -36,7 +36,6 @@ void picostation::SubQ::start_subq(const int sector) {
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub[0]);
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub[1]);
     pio_sm_put_blocking(PIOInstance::SUBQ, SM::SUBQ, sub[2]);
-
 #if DEBUG_SUBQ
     if (sector % 50 == 0) {
         printf_subq(tracksubq.raw);

@@ -15,7 +15,6 @@
 #include "drive_mechanics.h"
 #include "ff.h"
 #include "global.h"
-#include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "logging.h"
 #include "main.pio.h"
@@ -32,6 +31,8 @@
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
+
+#define CACHED_SECS		8 /* Only 2, 4, 8, 16, 32 */
 
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 pseudoatomic<int> g_listingMode;
@@ -89,20 +90,29 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
 [[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
     picostation::ModChip modChip;
-    static uint32_t pioSamples[2][1176];
+    static uint32_t pioSamples[CACHED_SECS][1176];
     static uint16_t *cdScramblingLUT = generateScramblingLUT();
 
-    int bufferForDMA = 1;
-    int bufferForSDRead = 0;
-    int loadedSector[2];
-    int currentSector = -1;
+    static uint8_t bufferForDMA = 1;
+    static uint8_t bufferForSDRead = 0;
+    static int loadedSector[CACHED_SECS];
+    static int currentSector = -1;
+    static int lastSector = -1;
+    
+    //static bool first_run = true;
+    
     m_sectorSending = -1;
-    int loadedImageIndex = 0;
+    static int loadedImageIndex = 0;
 
     g_imageIndex = -1;
     menu_active = true;
-
-    int dmaChannel = initDMA(pioSamples[0], 1176);
+    
+    for (int i = 0; i < CACHED_SECS; i++) {
+		loadedSector[i] = -2;
+	}
+	
+    
+    dmaChannel = initDMA(pioSamples[0], 1176);
 
     g_coreReady[1] = true;          // Core 1 is ready
     while (!g_coreReady[0].Load())  // Wait for Core 0 to be ready
@@ -113,13 +123,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     modChip.init();
 
 #if DEBUG_I2S
-    uint64_t startTime = time_us_64();
+    uint64_t startTime;
     uint64_t endTime;
-    uint64_t totalTime = 0;
-    uint64_t shortestTime = UINT64_MAX;
-    uint64_t longestTime = 0;
-    unsigned sectorCount = 0;
-    unsigned cacheHitCount = 0;
 #endif
 
 	mountSDCard();
@@ -147,8 +152,10 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 			} else {
 				s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
 			}
-
-			if (loadedImageIndex != imageIndex || g_fileListingState.Load() == FileListingStates::MOUNT_FILE) {
+			
+			FileListingStates curstate = g_fileListingState.Load();
+			
+			if (loadedImageIndex != imageIndex || curstate == FileListingStates::MOUNT_FILE) {
 				if (s_dataLocation == picostation::DiscImage::DataLocation::SDCard) {
 					char filePath[c_maxFilePathLength + 1];
 					picostation::DirectoryListing::getPath(imageIndex, filePath);
@@ -161,15 +168,16 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				loadedImageIndex = imageIndex;
 
 				// Reset cache and loaded sectors
-				loadedSector[0] = -1;
-				loadedSector[1] = -1;
-				bufferForDMA = 1;
-				bufferForSDRead = 0;
+				/*for (int i = 0; i < CACHED_SECS; i++) {
+					loadedSector[i] = -2;
+				}
 				
+				bufferForDMA = 1;
+				bufferForSDRead = 0;*/
 				//memset(pioSamples, 0, sizeof(pioSamples));
 			}
 			
-			switch (g_fileListingState.Load())
+			switch (curstate)
 			{
 				case FileListingStates::GOTO_ROOT:
 					//printf("Processing GOTO_ROOT\n");
@@ -197,84 +205,92 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 					//printf("Processing MOUNT_FILE\n");
 					// move mounting here;
 					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
-					gpio_put(Pin::RESET, 0);
 					gpio_set_dir(Pin::RESET, GPIO_OUT);
-					sleep_ms(500);
+					gpio_put(Pin::RESET, 0);
+					sleep_ms(300);
 					gpio_put(Pin::RESET, 1);
 					gpio_set_dir(Pin::RESET, GPIO_IN);
 					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
-					
-					continue;
 					break;
 				
 				default:
 					break;
 			}
+			
+			g_fileListingState = FileListingStates::IDLE;
 		}
 		
         // Data sent via DMA, load the next sector
-        if (bufferForDMA != bufferForSDRead) {
-#if DEBUG_I2S
-            startTime = time_us_64();
-#endif
+        if (currentSector != lastSector) {
+			if (currentSector <= 4650) {
+				loadedSector[bufferForDMA] = currentSector;
+				lastSector = currentSector;
+				goto continue_transfer;
+			}
+			
+			for (int i = 0; i < CACHED_SECS; i++) {
+				if (loadedSector[i] == currentSector) {
+					// already in cache
+					bufferForDMA = i;
+					lastSector = currentSector;
+					goto continue_transfer;
+				}
+			}
+			
+			while (loadedSector[bufferForSDRead] == getSectorSending()){
+				++bufferForSDRead &= (CACHED_SECS-1);
+			}
+			
             if (menu_active && (currentSector - c_leadIn - c_preGap) == 100 && g_fileListingState.Load() == FileListingStates::IDLE) {
                 g_discImage.buildSector(currentSector - c_leadIn, pioSamples[bufferForSDRead], 
 										(uint16_t *) picostation::DirectoryListing::getFileListingData(), cdScramblingLUT);
             } else {
+#if DEBUG_I2S
+				startTime = time_us_64();
+#endif
                 // Load the next sector
                 g_discImage.readSector(pioSamples[bufferForSDRead], currentSector - c_leadIn, s_dataLocation, cdScramblingLUT);
+#if DEBUG_I2S
+				endTime = time_us_64();
+				DEBUG_PRINT("read time: %lluus (%d)\n", endTime-startTime, currentSector);
+#endif
             }
 
             loadedSector[bufferForSDRead] = currentSector;
-            bufferForSDRead = (bufferForSDRead + 1) % 2;
-#if DEBUG_I2S
-            endTime = time_us_64();
-            totalTime = endTime - startTime;
-            if (totalTime < shortestTime) {
-                shortestTime = totalTime;
-            }
-            if (totalTime > longestTime) {
-                longestTime = totalTime;
-            }
-            sectorCount++;
-#endif
+            bufferForDMA = bufferForSDRead;
+			++bufferForSDRead &= (CACHED_SECS - 1);
+            lastSector = currentSector;
         }
-
-        g_fileListingState = FileListingStates::IDLE;
+continue_transfer:
 
         // Start the next transfer if the DMA channel is not busy
-        /*while (dma_channel_is_busy(dmaChannel)) {
-			tight_loop_contents();
-		}*/
-        
         if (!dma_channel_is_busy(dmaChannel)) {
-            bufferForDMA = (bufferForDMA + 1) % 2;
-            m_sectorSending = loadedSector[bufferForDMA];
-            m_lastSectorTime = time_us_64();
+			if (currentSector > 0) {
+				m_sectorSending = loadedSector[bufferForDMA];
+				m_lastSectorTime = time_us_64();
+			}
+            
+            if (currentSector > 4650) {
+				/*if (!first_run)
+				{
+					(void) pio_sm_get_blocking(PIOInstance::SUBQ, SM::SUBQ);
+				}*/
+				//updatePlaybackSpeed();
+				
+				dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
-            dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
+				// Sync with the I2S clock
+				while (gpio_get(Pin::LRCK) == 1) {
+					tight_loop_contents();
+				}
+				while (gpio_get(Pin::LRCK) == 0) {
+					tight_loop_contents();
+				}
 
-            // Sync with the I2S clock
-            while (gpio_get(Pin::LRCK) == 1) {
-                tight_loop_contents();
-            }
-            while (gpio_get(Pin::LRCK) == 0) {
-                tight_loop_contents();
-            }
-
-            dma_channel_start(dmaChannel);
+				dma_channel_start(dmaChannel);
+			}
+			//first_run = false;
         }
-
-#if DEBUG_I2S
-        if (sectorCount >= 100) {
-            DEBUG_PRINT("min: %lluus, max: %lluus cache hits: %u/%u\n", shortestTime, longestTime, cacheHitCount,
-                        sectorCount);
-            sectorCount = 0;
-            shortestTime = UINT64_MAX;
-            longestTime = 0;
-            cacheHitCount = 0;
-        }
-#endif
     }
     __builtin_unreachable();
 }

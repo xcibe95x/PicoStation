@@ -146,6 +146,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                             return 0;
                         },
                         NULL, true);
+                    //subq.start_subq(currentSector);
                 }
             } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
@@ -163,8 +164,9 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
 }
 
 void picostation::initHW() {
+
 #if DEBUG_LOGGING_ENABLED
-    stdio_init_all();
+	stdio_init_all();
     stdio_set_chars_available_callback(NULL, NULL);
     sleep_ms(1250);
 #endif
@@ -264,6 +266,7 @@ void picostation::updatePlaybackSpeed() {
     static constexpr unsigned int c_clockDivDouble = 2;
 
     if (s_currentPlaybackSpeed != g_targetPlaybackSpeed) {
+		//while (m_i2s.dma_bsy());
         s_currentPlaybackSpeed = g_targetPlaybackSpeed;
         const unsigned int clock_div = (s_currentPlaybackSpeed == 1) ? c_clockDivNormal : c_clockDivDouble;
         pwm_set_mask_enabled(0);

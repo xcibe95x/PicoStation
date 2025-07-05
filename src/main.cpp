@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <csignal>
 
+int c_sectorMax = 333000;  // 74:00:00
+
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);  // Increase the VREG voltage to 1.15V for the faster clock speed
     sleep_ms(100); // Wait for the voltage to stabilize

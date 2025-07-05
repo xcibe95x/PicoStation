@@ -77,18 +77,16 @@ constexpr unsigned int SOCT = 2;
 constexpr unsigned int SUBQ = 3;
 }  // namespace SM
 
-constexpr int NUM_IMAGES = 3;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
-constexpr int c_licenseSectors = 16; // License sectors in the loader image
 
 constexpr uint32_t c_trackMin = 0;
 constexpr uint32_t c_trackMax = 20892;  // 73:59:58
 constexpr int c_sectorMin = 0;
-constexpr int c_sectorMax = 333000;  // 74:00:00
+extern int c_sectorMax;
 
 constexpr unsigned int c_MaxTrackMoveTime = 15;    // uS
-constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
+constexpr unsigned int c_MaxSubqDelayTime = 6666;  // uS
 
 
 constexpr size_t c_cdSamplesSize = 588;

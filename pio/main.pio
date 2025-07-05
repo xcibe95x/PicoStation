@@ -74,7 +74,7 @@ loop_dword:
     
     push block
     
-    set pins 1
+    set pins 0
 hang:
     jmp hang
 
