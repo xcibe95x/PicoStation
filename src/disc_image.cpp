@@ -276,9 +276,9 @@ picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSub
 
     subqdata.crc = 0;
     
-    if (subqdata.ctrladdr != 1) {
+    /*if (subqdata.ctrladdr != 1) {
 		return subqdata;
-	}
+	}*/
 	
     switch (g_audioCtrlMode) {
         case audioControlModes::NORMAL:
@@ -372,7 +372,7 @@ FRESULT __time_critical_func(picostation::DiscImage::load)(const TCHAR *targetCu
                     m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
     }
     
-    c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0];
+    //c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0];
     
     return FR_OK;
 }
@@ -469,8 +469,8 @@ void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, co
     if (i > m_cueDisc.trackCount)
 	{
 		DEBUG_PRINT("out of range image sec (%d)\n", adjustedSector);
-		//memset(s_userData, 0, c_cdSamplesBytes);
-		//buildSector(sector, static_cast<uint32_t *>(buffer), (uint16_t *) s_userData, scramling);
+		memset(s_userData, 0, c_cdSamplesBytes);
+		buildSector(sector, static_cast<uint32_t *>(buffer), (uint16_t *) s_userData, scramling);
 	}
     else if (br < c_cdSamplesBytes) {
 		DEBUG_PRINT("readed %llu of 2352\n", br);

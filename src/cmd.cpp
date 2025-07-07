@@ -378,7 +378,7 @@ void picostation::MechCommand::updateAutoSeqTrack() {
 }
 
 void __time_critical_func(picostation::MechCommand::updateMechSens)() {
-    while (!pio_sm_is_rx_fifo_empty(PIOInstance::MECHACON, SM::MECHACON)) {
+    while (pio_sm_get_rx_fifo_level(PIOInstance::MECHACON, SM::MECHACON)) {
         const uint32_t c = pio_sm_get_blocking(PIOInstance::MECHACON, SM::MECHACON) >> 24;
         m_latched = m_latched >> 8;
         m_latched = m_latched | (c << 16);

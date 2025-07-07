@@ -85,8 +85,8 @@ constexpr uint32_t c_trackMax = 20892;  // 73:59:58
 constexpr int c_sectorMin = 0;
 extern int c_sectorMax;
 
-constexpr unsigned int c_MaxTrackMoveTime = 15;    // uS
-constexpr unsigned int c_MaxSubqDelayTime = 6666;  // uS
+constexpr unsigned int c_MaxTrackMoveTime = 100;    // uS
+constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
 
 
 constexpr size_t c_cdSamplesSize = 588;

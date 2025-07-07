@@ -32,7 +32,7 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-#define CACHED_SECS		8 /* Only 2, 4, 8, 16, 32 */
+#define CACHED_SECS		4 /* Only 2, 4, 8, 16, 32 */
 
 pseudoatomic<int> g_imageIndex;  // To-do: Implement a console side menu to select the cue file
 pseudoatomic<int> g_listingMode;
@@ -170,10 +170,10 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				// Reset cache and loaded sectors
 				/*for (int i = 0; i < CACHED_SECS; i++) {
 					loadedSector[i] = -2;
-				}
+				}*/
 				
-				bufferForDMA = 1;
-				bufferForSDRead = 0;*/
+				//bufferForDMA = 1;
+				//bufferForSDRead = 0;
 				//memset(pioSamples, 0, sizeof(pioSamples));
 			}
 			
@@ -204,13 +204,19 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				case FileListingStates::MOUNT_FILE:
 					//printf("Processing MOUNT_FILE\n");
 					// move mounting here;
-					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
-					gpio_set_dir(Pin::RESET, GPIO_OUT);
-					gpio_put(Pin::RESET, 0);
-					sleep_ms(300);
-					gpio_put(Pin::RESET, 1);
-					gpio_set_dir(Pin::RESET, GPIO_IN);
-					gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+					if (s_dataLocation == picostation::DiscImage::DataLocation::SDCard) {
+						gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
+						gpio_set_dir(Pin::RESET, GPIO_OUT);
+						gpio_put(Pin::RESET, 0);
+						sleep_ms(300);
+						lastSector = -1;
+						//g_driveMechanics.resetDrive();
+						gpio_put(Pin::RESET, 1);
+						gpio_set_dir(Pin::RESET, GPIO_IN);
+						sleep_ms(100);
+						gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+						continue;
+					}
 					break;
 				
 				default:
@@ -221,12 +227,12 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 		}
 		
         // Data sent via DMA, load the next sector
-        if (currentSector != lastSector) {
-			if (currentSector <= 4650) {
+        if (currentSector != lastSector && currentSector >= 4650) {
+			/*if (currentSector <= 4650) {
 				loadedSector[bufferForDMA] = currentSector;
 				lastSector = currentSector;
 				goto continue_transfer;
-			}
+			}*/
 			
 			for (int i = 0; i < CACHED_SECS; i++) {
 				if (loadedSector[i] == currentSector) {
@@ -241,7 +247,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				++bufferForSDRead &= (CACHED_SECS-1);
 			}
 			
-            if (menu_active && (currentSector - c_leadIn - c_preGap) == 100 && g_fileListingState.Load() == FileListingStates::IDLE) {
+            if (menu_active && currentSector == 4750 && g_fileListingState.Load() == FileListingStates::IDLE) {
                 g_discImage.buildSector(currentSector - c_leadIn, pioSamples[bufferForSDRead], 
 										(uint16_t *) picostation::DirectoryListing::getFileListingData(), cdScramblingLUT);
             } else {
@@ -265,18 +271,10 @@ continue_transfer:
 
         // Start the next transfer if the DMA channel is not busy
         if (!dma_channel_is_busy(dmaChannel)) {
-			if (currentSector > 0) {
+			if (currentSector >= 4650) {
 				m_sectorSending = loadedSector[bufferForDMA];
 				m_lastSectorTime = time_us_64();
-			}
-            
-            if (currentSector > 4650) {
-				/*if (!first_run)
-				{
-					(void) pio_sm_get_blocking(PIOInstance::SUBQ, SM::SUBQ);
-				}*/
-				//updatePlaybackSpeed();
-				
+
 				dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
 				// Sync with the I2S clock
@@ -289,7 +287,10 @@ continue_transfer:
 
 				dma_channel_start(dmaChannel);
 			}
-			//first_run = false;
+			else if(picostation::g_subqDelay == false){
+				m_sectorSending = currentSector;
+				m_lastSectorTime = time_us_64();
+			}
         }
     }
     __builtin_unreachable();

@@ -25,6 +25,15 @@ class DriveMechanics {
         m_sectorForTrackUpdate = trackToSector(m_track);
         m_sector = m_sectorForTrackUpdate;
     }
+    
+    void resetDrive(){
+		m_countTrack = 0;
+		m_originalTrack = 0;
+		m_track = 0;
+		m_sectorForTrackUpdate = 0;
+		m_sectorsPerTrack = sectorsPerTrack(0);
+		m_sledMoveDirection = SledMove::STOP;
+	}
 
     bool isSledStopped() { return m_sledMoveDirection == SledMove::STOP; }
 

@@ -96,6 +96,12 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
     }
 }
 
+static void __time_critical_func(mech_irq_hnd)() {
+	// Update latching, output SENS
+	m_mechCommand.updateMechSens();
+	pio_interrupt_clear(PIOInstance::MECHACON, 0);
+}
+
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
     SubQ subq(&g_discImage);
     uint64_t subqDelayTime = 0;
@@ -114,7 +120,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
 		}
 
         // Update latching, output SENS
-        m_mechCommand.updateMechSens();
+        //m_mechCommand.updateMechSens();
 
         const int currentSector = g_driveMechanics.getSector();
 
@@ -135,8 +141,8 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
         } else if (m_mechCommand.getSens(SENS::GFS)) {
             if (g_subqDelay) {
                 if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) {
-                    g_subqDelay = false;
-                    subq.start_subq(currentSector);
+                    //g_subqDelay = false;
+                    //subq.start_subq(currentSector);
 
                     gpio_put(Pin::SCOR, 1);
                     add_alarm_in_us(
@@ -146,7 +152,8 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                             return 0;
                         },
                         NULL, true);
-                    //subq.start_subq(currentSector);
+                    subq.start_subq(currentSector);
+                    g_subqDelay = false;
                 }
             } else if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
@@ -242,6 +249,13 @@ void picostation::initHW() {
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interruptHandler);
 
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
+    
+    pio_set_irq0_source_enabled(PIOInstance::MECHACON, (enum pio_interrupt_source)pis_interrupt0, true);
+    
+    
+    pio_interrupt_clear(PIOInstance::MECHACON, 0);
+    irq_set_exclusive_handler(PIO0_IRQ_0, mech_irq_hnd);
+    irq_set_enabled(PIO0_IRQ_0, true);
 
     g_coreReady[0] = false;
     g_coreReady[1] = false;
