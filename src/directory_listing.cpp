@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "global.h"
 #include "ff.h"
 #include "listingBuilder.h"
 
@@ -19,14 +20,12 @@ namespace picostation {
 
 namespace {
     char currentDirectory[c_maxFilePathLength + 1];
-    char currentFilter[c_maxFilePathLength + 1];
     listingBuilder* fileListing;
 }  // namespace
 
 void DirectoryListing::init() {
     fileListing = new listingBuilder();
     gotoRoot();
-    setFilter("");
 }
 
 void DirectoryListing::gotoRoot() { 
@@ -74,12 +73,6 @@ void DirectoryListing::gotoParentDirectory() {
     currentDirectory[0] = '\0';
 }
 
-void DirectoryListing::setFilter(const char* filter) {
-    uint32_t length = strnlen(filter, c_maxFilePathLength);
-    strncpy(currentFilter, filter, length);
-    currentFilter[length] = '\0';
-}
-
 void DirectoryListing::getExtension(const char* filePath, char* extension) {
     const char* lastDotPtr = strrchr(filePath, '.');
     if (lastDotPtr != nullptr && lastDotPtr != filePath) {
@@ -103,16 +96,6 @@ void DirectoryListing::getPathWithoutExtension(const char* filePath, char* newPa
     }
 }
 
-bool DirectoryListing::pathContainsFilter(const char* filePath) {
-    if (strlen(currentFilter) == 0) {
-        return true;
-    }
-    char pathWithoutExtension[c_maxFilePathLength + 1];
-    getPathWithoutExtension(filePath, pathWithoutExtension);
-    return strstr(pathWithoutExtension, currentFilter) != nullptr;
-}
-
-
 bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
     DIR dir;
     FILINFO currentEntry;
@@ -125,8 +108,8 @@ bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
 
     fileListing->clear();
 
-    uint32_t fileEntryCount = 0;
-    uint32_t filesProcessed = 0;
+    uint16_t fileEntryCount = 0;
+    uint16_t filesProcessed = 0;
     bool hasNext = false;
 
     res = f_readdir(&dir, &currentEntry);
@@ -134,19 +117,20 @@ bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
         res = f_readdir(&dir, &nextEntry);
         hasNext = (res == FR_OK && nextEntry.fname[0] != '\0');
         while (true) {
-            if (!(currentEntry.fattrib & AM_HID)) {
-				if ((currentEntry.fattrib & AM_DIR) || strstr(currentEntry.fname, ".cue")) {
-					if (pathContainsFilter(currentEntry.fname)) {
-						if (filesProcessed >= offset) {
-							if (fileListing->addString(currentEntry.fname, currentEntry.fattrib & AM_DIR ? 1 : 0) == false) {
-								break;
-							}
-							fileEntryCount++;
-						}
-						filesProcessed++;
-					}
-				}
+            if (!(currentEntry.fattrib & AM_HID) && (currentEntry.fattrib & AM_DIR || strstr(currentEntry.fname, ".cue"))) {
+                if (filesProcessed >= offset) {
+                    if (fileListing->addString(currentEntry.fname, currentEntry.fattrib & AM_DIR ? 1 : 0) == false) {
+                        break;
+                    }
+                    fileEntryCount++;
+                }
+                filesProcessed++;
+                if (filesProcessed >= 4096)
+                {
+                    hasNext = 0;
+                }
             }
+            
             if (hasNext == 0) {
                 break;
             }
@@ -155,12 +139,61 @@ bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
             hasNext = (res == FR_OK && nextEntry.fname[0] != '\0');
         }
     }
-    fileListing->addTerminator(hasNext ? 1 : 0);
+    
+    if (offset == 0)
+    {
+        uint16_t totalCount = getDirectoryEntriesCount();
+        fileListing->addTerminator(hasNext ? 1 : 0, totalCount);
+        DEBUG_PRINT("file count: %d\n", totalCount);
+    }
+    else
+    {
+        fileListing->addTerminator(hasNext ? 1 : 0, 0xffff);
+    }
+    
     f_closedir(&dir);
     return true;
 }
 
-uint8_t* DirectoryListing::getFileListingData() {
+uint16_t DirectoryListing::getDirectoryEntriesCount() {
+    DIR dir;
+    FILINFO currentEntry;
+    FILINFO nextEntry;
+    FRESULT res = f_opendir(&dir, currentDirectory);
+    if (res != FR_OK) {
+        DEBUG_PRINT("f_opendir error: %s (%d)\n", FRESULT_str(res), res);
+        return 0;
+    }
+
+    uint16_t fileEntryCount = 0;
+    bool hasNext = false;
+
+    res = f_readdir(&dir, &currentEntry);
+    if (res == FR_OK && currentEntry.fname[0] != '\0') {
+        res = f_readdir(&dir, &nextEntry);
+        hasNext = (res == FR_OK && nextEntry.fname[0] != '\0');
+        while (true) {
+            if (!(currentEntry.fattrib & AM_HID) && (currentEntry.fattrib & AM_DIR || strstr(currentEntry.fname, ".cue"))) {
+				fileEntryCount++;
+				if (fileEntryCount >= 4096)
+				{
+					hasNext = 0;
+				}
+            }
+            
+            if (hasNext == 0) {
+                break;
+            }
+            currentEntry = nextEntry;
+            res = f_readdir(&dir, &nextEntry);
+            hasNext = (res == FR_OK && nextEntry.fname[0] != '\0');
+        }
+    }
+    f_closedir(&dir);
+    return fileEntryCount;
+}
+
+uint16_t* DirectoryListing::getFileListingData() {
     return fileListing->getData();
 }
 
@@ -178,6 +211,12 @@ void DirectoryListing::combinePaths(const char* filePath1, const char* filePath2
 }
 
 bool DirectoryListing::getDirectoryEntry(const uint32_t index, char* filePath) {
+
+    if (index >= 4096)
+    {
+        return false;
+    }
+
     DIR dir;
     FILINFO currentEntry;
     FILINFO nextEntry;
@@ -194,17 +233,13 @@ bool DirectoryListing::getDirectoryEntry(const uint32_t index, char* filePath) {
         res = f_readdir(&dir, &nextEntry);
         bool hasNext = (res == FR_OK && nextEntry.fname[0] != '\0');
         while (true) {
-            if (!(currentEntry.fattrib & AM_HID)) {
-				if ((currentEntry.fattrib & AM_DIR) || strstr(currentEntry.fname, ".cue")) {
-					if (pathContainsFilter(currentEntry.fname)) {
-						if (filesProcessed == index) {
-							strncpy(filePath, currentEntry.fname, c_maxFilePathLength);
-							f_closedir(&dir);
-							return true;
-						}
-						filesProcessed++;
-					}
-				}
+            if (!(currentEntry.fattrib & AM_HID) && (currentEntry.fattrib & AM_DIR || strstr(currentEntry.fname, ".cue"))) {
+                if (filesProcessed == index) {
+                    strncpy(filePath, currentEntry.fname, c_maxFilePathLength);
+                    f_closedir(&dir);
+                    return true;
+                }
+                filesProcessed++;
             }
             if (!hasNext) {
                 break;

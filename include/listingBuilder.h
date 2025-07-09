@@ -14,7 +14,7 @@ class listingBuilder {
     bool addString(const char* value, uint8_t flags) {
         uint8_t pathLen = strnlen(value, 255);
         uint16_t sizeToAdd = 2 + pathLen;
-        if ((mSize + sizeToAdd + 2) > LISTING_SIZE) {
+        if ((mSize + sizeToAdd + 4) > LISTING_SIZE) {
             return false;
         }
         mValuesContainer[mSize] = pathLen;
@@ -24,17 +24,20 @@ class listingBuilder {
         return true;
     }
 
-    bool addTerminator(uint8_t hasNext) {
-        if ((mSize + 2) > LISTING_SIZE) {
+    bool addTerminator(uint8_t hasNext, uint16_t count) {
+        if ((mSize + 4) > LISTING_SIZE) {
             return false;
         }
         mValuesContainer[mSize] = 0;
         mValuesContainer[mSize + 1] = hasNext;
+        mValuesContainer[mSize + 2] = (count >> 8) & 0xff;
+        mValuesContainer[mSize + 3] = count & 0xff;
+        mSize += 4;
         mSize += 2;
         return true;
     }
 
-    uint8_t* getData() { return mValuesContainer; }
+    uint16_t* getData() { return mValuesContainer16; }
 
     uint32_t size() { return mSize; }
 
@@ -70,6 +73,7 @@ class listingBuilder {
     }
 
   private:
-    uint8_t mValuesContainer[LISTING_SIZE];
+	uint16_t mValuesContainer16[LISTING_SIZE/2];
+    uint8_t *mValuesContainer = (uint8_t *) &mValuesContainer16;
     uint32_t mSize;
 };

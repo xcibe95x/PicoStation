@@ -5,6 +5,7 @@
 
 #include "cmd.h"
 #include "disc_image.h"
+#include "directory_listing.h"
 #include "drive_mechanics.h"
 #include "hardware/pwm.h"
 #include "i2s.h"
@@ -50,7 +51,7 @@ static unsigned int s_mechachonOffset;
 unsigned int picostation::g_soctOffset;
 unsigned int picostation::g_subqOffset;
 
-static bool s_resetPending = false;
+static uint8_t s_resetPending = 0;
 
 static picostation::PWMSettings pwmDataClock = {
     .gpio = Pin::DA15, .wrap = (1 * 32) - 1, .clkdiv = 4, .invert = true, .level = (32 / 2)};
@@ -65,6 +66,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events);
 
 static void interruptHandler(unsigned int gpio, uint32_t events) {
     static uint32_t lastLowEvent = 0;
+	static uint32_t lastLowEventDoor = 0;
 
     switch (gpio) {
         case Pin::RESET: {
@@ -80,13 +82,43 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
 
                 const uint32_t c_now = time_us_32();
                 const uint32_t c_timeElapsed = c_now - lastLowEvent;
+                
                 if (c_timeElapsed >= 500U)  // Debounce, only reset if the pin was low for more than 500us(.5 ms)
                 {
-                    s_resetPending = true;
+                    if (c_timeElapsed >= 1000000U) // pressed more one second
+					{
+						s_resetPending = 2;
+					}
+					else {
+						s_resetPending = 1;
+					}
                 } else {
                     // Enable the low signal edge detection again
                     gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
                 }
+            }
+        } break;
+        
+        case Pin::DOOR: {
+            if (events & GPIO_IRQ_LEVEL_HIGH) {
+                lastLowEventDoor = time_us_32();
+                // Disable low signal edge detection
+                gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, false);
+                // Enable high signal edge detection
+                gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_LOW, true);
+            } else if (events & GPIO_IRQ_LEVEL_LOW) {
+                // Disable the rising edge detection
+                gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_LOW, false);
+
+                const uint32_t c_now = time_us_32();
+                const uint32_t c_timeElapsed = c_now - lastLowEventDoor;
+                if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
+                {
+                    m_i2s.s_doorPending = true;
+                }
+                
+                // Enable the low signal edge detection again
+                gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, true);
             }
         } break;
 
@@ -116,7 +148,7 @@ static void __time_critical_func(mech_irq_hnd)() {
             while (gpio_get(Pin::RESET) == 0) {
                 tight_loop_contents();
             }
-            reset();
+			reset();
 		}
 
         // Update latching, output SENS
@@ -177,7 +209,7 @@ void picostation::initHW() {
     stdio_set_chars_available_callback(NULL, NULL);
     sleep_ms(1250);
 #endif
-	
+
     DEBUG_PRINT("Initializing...\n");
 
     mutex_init(&g_mechaconMutex);
@@ -246,6 +278,7 @@ void picostation::initHW() {
     }
 
     gpio_set_irq_enabled_with_callback(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true, &interruptHandler);
+    gpio_set_irq_enabled_with_callback(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, true, &interruptHandler);
     gpio_set_irq_enabled_with_callback(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true, &interruptHandler);
 
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
@@ -312,6 +345,8 @@ void picostation::reset() {
 
     gpio_put(Pin::SCOR, 0);
     gpio_put(Pin::SQSO, 0);
+	g_driveMechanics.resetDrive();
+	m_i2s.reinitI2S();
 	
 	uint64_t startTime = time_us_64();
 	
@@ -326,10 +361,17 @@ void picostation::reset() {
 			startTime = time_us_64();
 		}
 	}
-
+	
+	if (s_resetPending == 2)
+    {
+        s_dataLocation = picostation::DiscImage::DataLocation::RAM;
+        picostation::DirectoryListing::gotoRoot();
+        m_i2s.menu_active = true;
+    }
+	
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
     
-	s_resetPending = false;
+	s_resetPending = 0;
 	gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
 }
 

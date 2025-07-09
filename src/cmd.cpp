@@ -20,7 +20,9 @@
 #define DEBUG_PRINT(...) while (0)
 #endif
 
-extern pseudoatomic<int> g_imageIndex;
+extern pseudoatomic<uint32_t> g_fileArg;
+extern pseudoatomic<picostation::FileListingStates> needFileCheckAction;
+extern pseudoatomic<int> listReadyState;
 
 inline void picostation::MechCommand::audioControl(const uint32_t latched) {
     const uint32_t pct2_bit = (1 << 14);
@@ -131,65 +133,37 @@ inline void picostation::MechCommand::customCommand(const uint32_t latched) {
     //printf("Custom command: %x %x\n", subCommand, arg);
     switch (subCommand) {
         case Command::COMMAND_NONE:
-            g_fileListingState = FileListingStates::IDLE;
+            needFileCheckAction = FileListingStates::IDLE;
             break;
         case Command::COMMAND_GOTO_ROOT:
             DEBUG_PRINT("GOTO_ROOT\n");
-            g_fileListingState = FileListingStates::GOTO_ROOT;
+            needFileCheckAction = FileListingStates::GOTO_ROOT;
+            listReadyState = 0;
             break;
         case Command::COMMAND_GOTO_PARENT: 
             DEBUG_PRINT("GOTO_PARENT\n");
-            g_fileListingState = FileListingStates::GOTO_PARENT;
+            needFileCheckAction = FileListingStates::GOTO_PARENT;
+            listReadyState = 0;
             break;
         case Command::COMMAND_GOTO_DIRECTORY:
             DEBUG_PRINT("GOTO_DIRECTORY\n");
-            g_fileListingState = FileListingStates::GOTO_DIRECTORY;
+            needFileCheckAction = FileListingStates::GOTO_DIRECTORY;
+            listReadyState = 0;
             break;
         case Command::COMMAND_GET_NEXT_CONTENTS: 
             DEBUG_PRINT("GET_NEXT_CONTENTS\n");
-            g_fileListingState = FileListingStates::GET_NEXT_CONTENTS;
+            needFileCheckAction = FileListingStates::GET_NEXT_CONTENTS;
+            listReadyState = 0;
             break;
         case Command::COMMAND_MOUNT_FILE:
             DEBUG_PRINT("MOUNT_FILE\n");
-            //printf("disc image change: %x %x\n", subCommand, arg);
-            g_fileListingState = FileListingStates::MOUNT_FILE;
-            g_imageIndex = arg; //todo use g_fileArg instead
+            needFileCheckAction = FileListingStates::MOUNT_FILE;
             break;
         case Command::COMMAND_IO_COMMAND:
             DEBUG_PRINT("COMMAND_IO_COMMAND %x\n", arg);
-            if (arg == 1)
-            {
-                ioCommand = 1;
-                memset(gameId, 0, sizeof(gameId));
-                gameIdIndex = 0;
-            }
             break;
         case Command::COMMAND_IO_DATA:
             DEBUG_PRINT("COMMAND_IO_DATA %x\n", arg);
-            if (ioCommand == 1)
-            {
-                uint8_t value1 = (uint8_t)((arg >> 8) & 0xFF);
-                if (value1 == 0)
-                {
-                    DEBUG_PRINT("GOT GAMEID %s\n", gameId);
-                    break;
-                }
-                if (gameIdIndex < gameIdLen) {
-
-                    gameId[gameIdIndex] = value1;
-                    gameIdIndex++;
-                }
-                uint8_t value2 = (uint8_t)(arg & 0xFF);
-                if (value2 == 0)
-                {
-                    DEBUG_PRINT("GOT GAMEID %s\n", gameId);
-                    break;
-                }
-                if (gameIdIndex < gameIdLen) {
-                    gameId[gameIdIndex] = value2;
-                    gameIdIndex++;
-                }
-            }
             break;
         case Command::COMMAND_BOOTLOADER:
             if (arg == 0xBEEF) {

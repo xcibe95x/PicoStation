@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "ff.h"
 #include "logging.h"
 #include "picostation.h"
@@ -14,6 +13,7 @@
 #include "third_party/iec-60908b/edcecc.h"
 #include "third_party/posix_file.h"
 #include "values.h"
+#include "global.h"
 
 #if DEBUG_CUE
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
@@ -130,7 +130,7 @@ void __time_critical_func(picostation::DiscImage::buildSector)(const int sector,
 	}
     
 	for (int i = 12; i < 1174; i++) {
-		tmp = (*userData++ ^ scramling[i]) << 8;
+		tmp = (((userData) ? *userData++ : 0) ^ scramling[i]) << 8;
 		
 		if (tmp & 0x100) {
 			tmp |= 0xFF;

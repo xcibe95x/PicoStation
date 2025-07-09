@@ -6,6 +6,10 @@
 
 #include "pseudo_atomics.h"
 #include "hardware/dma.h"
+#include "ff.h"
+#include "disc_image.h"
+
+#define CACHED_SECS		4 /* Only 2, 4, 8, 16, 32 */
 
 namespace picostation {
 class MechCommand;
@@ -15,10 +19,16 @@ class I2S {
     I2S() {};
     int dmaChannel;
     bool menu_active;
+    bool s_doorPending;
     
     int getSectorSending() { return m_sectorSending.Load(); }
     uint64_t getLastSectorTime() { return m_lastSectorTime.Load(); }
-	//bool dma_bsy() { return dma_channel_is_busy(dmaChannel); }
+	void reinitI2S() {
+		for (int i = 0; i < CACHED_SECS; i++) {
+			loadedSector[i] = -2;
+		}
+		lastSector = -1;
+	}
 
     [[noreturn]] void start(MechCommand &mechCommand);
 	
@@ -26,7 +36,12 @@ class I2S {
     int initDMA(const volatile void *read_addr, unsigned int transfer_count);  // Returns DMA channel number
     void mountSDCard();
 	
+	int loadedSector[CACHED_SECS];
+	int lastSector;
+	
     pseudoatomic<int> m_sectorSending;
     pseudoatomic<uint64_t> m_lastSectorTime;
 };
 }  // namespace picostation
+
+extern picostation::DiscImage::DataLocation s_dataLocation;
