@@ -13,6 +13,11 @@ class listingBuilder {
 
     bool addString(const char* value, uint8_t flags) {
         uint8_t pathLen = strnlen(value, 255);
+        
+        if (!flags) { // is .cue, remove extension
+			pathLen -= 4;
+		}
+        
         uint16_t sizeToAdd = 2 + pathLen;
         if ((mSize + sizeToAdd + 4) > LISTING_SIZE) {
             return false;

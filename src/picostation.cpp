@@ -62,7 +62,6 @@ static picostation::PWMSettings pwmLRClock = {
 static picostation::PWMSettings pwmMainClock = {.gpio = Pin::CLK, .wrap = 1, .clkdiv = 2, .invert = false, .level = 1};
 
 static void initPWM(picostation::PWMSettings *settings);
-static void interruptHandler(unsigned int gpio, uint32_t events);
 
 static void interruptHandler(unsigned int gpio, uint32_t events) {
     static uint32_t lastLowEvent = 0;
@@ -83,7 +82,7 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                 const uint32_t c_now = time_us_32();
                 const uint32_t c_timeElapsed = c_now - lastLowEvent;
                 
-                if (c_timeElapsed >= 500U)  // Debounce, only reset if the pin was low for more than 500us(.5 ms)
+                if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
                 {
                     if (c_timeElapsed >= 1000000U) // pressed more one second
 					{

@@ -73,29 +73,6 @@ void DirectoryListing::gotoParentDirectory() {
     currentDirectory[0] = '\0';
 }
 
-void DirectoryListing::getExtension(const char* filePath, char* extension) {
-    const char* lastDotPtr = strrchr(filePath, '.');
-    if (lastDotPtr != nullptr && lastDotPtr != filePath) {
-        size_t extensionLen = strlen(filePath) - (lastDotPtr - filePath);
-        memcpy(extension, lastDotPtr, extensionLen);
-        extension[extensionLen] = '\0';
-    } else {
-        extension[0] = '\0';
-    }
-}
-
-void DirectoryListing::getPathWithoutExtension(const char* filePath, char* newPath) {
-    char extension[c_maxFilePathLength + 1];
-    DirectoryListing::getExtension(filePath, extension);
-    size_t extensionPos = strlen(filePath) - strlen(extension);
-    if (extensionPos > 0) {
-        memcpy(newPath, filePath, extensionPos);
-        newPath[extensionPos] = '\0';
-    } else {
-        newPath[0] = '\0';
-    }
-}
-
 bool DirectoryListing::getDirectoryEntries(const uint32_t offset) {
     DIR dir;
     FILINFO currentEntry;

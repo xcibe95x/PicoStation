@@ -12,8 +12,6 @@ class DirectoryListing {
     static bool gotoDirectory(const uint32_t index);
     static bool getPath(const uint32_t index, char* filePath);
     static void gotoParentDirectory();
-    static void getExtension(const char* filePath, char* extension);
-    static void getPathWithoutExtension(const char* filePath, char* newPath);
     static bool getDirectoryEntries(const uint32_t offset);
     static uint16_t getDirectoryEntriesCount();
     static uint16_t* getFileListingData();
