@@ -372,7 +372,7 @@ FRESULT __time_critical_func(picostation::DiscImage::load)(const TCHAR *targetCu
                     m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
     }
     
-    //c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0];
+    c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0] + 4650;
     
     return FR_OK;
 }

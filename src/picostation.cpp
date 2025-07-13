@@ -64,13 +64,13 @@ static picostation::PWMSettings pwmMainClock = {.gpio = Pin::CLK, .wrap = 1, .cl
 static void initPWM(picostation::PWMSettings *settings);
 
 static void interruptHandler(unsigned int gpio, uint32_t events) {
-    static uint32_t lastLowEvent = 0;
-	static uint32_t lastLowEventDoor = 0;
+    static uint64_t lastLowEvent = 0;
+	static uint64_t lastLowEventDoor = 0;
 
     switch (gpio) {
         case Pin::RESET: {
             if (events & GPIO_IRQ_LEVEL_LOW) {
-                lastLowEvent = time_us_32();
+                lastLowEvent = time_us_64();
                 // Disable low signal edge detection
                 gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
                 // Enable high signal edge detection
@@ -79,8 +79,8 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                 // Disable the rising edge detection
                 gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_HIGH, false);
 
-                const uint32_t c_now = time_us_32();
-                const uint32_t c_timeElapsed = c_now - lastLowEvent;
+                const uint64_t c_now = time_us_64();
+                const uint64_t c_timeElapsed = c_now - lastLowEvent;
                 
                 if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
                 {
@@ -91,16 +91,16 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
 					else {
 						s_resetPending = 1;
 					}
-                } else {
-                    // Enable the low signal edge detection again
-                    gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
                 }
+                
+				// Enable the low signal edge detection again
+				gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
             }
         } break;
         
         case Pin::DOOR: {
             if (events & GPIO_IRQ_LEVEL_HIGH) {
-                lastLowEventDoor = time_us_32();
+                lastLowEventDoor = time_us_64();
                 // Disable low signal edge detection
                 gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, false);
                 // Enable high signal edge detection
@@ -109,8 +109,8 @@ static void interruptHandler(unsigned int gpio, uint32_t events) {
                 // Disable the rising edge detection
                 gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_LOW, false);
 
-                const uint32_t c_now = time_us_32();
-                const uint32_t c_timeElapsed = c_now - lastLowEventDoor;
+                const uint64_t c_now = time_us_64();
+                const uint64_t c_timeElapsed = c_now - lastLowEventDoor;
                 if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
                 {
                     m_i2s.s_doorPending = true;
@@ -365,6 +365,7 @@ void picostation::reset() {
     {
         s_dataLocation = picostation::DiscImage::DataLocation::RAM;
         picostation::DirectoryListing::gotoRoot();
+        g_discImage.makeDummyCue();
         m_i2s.menu_active = true;
     }
 	
