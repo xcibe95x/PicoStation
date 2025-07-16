@@ -233,12 +233,15 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 						// already in cache
 						bufferForDMA = i;
 						lastSector = currentSector;
+#if DEBUG_I2S0
+						DEBUG_PRINT("sector %d in cache\n", currentSector);
+#endif
 						goto continue_transfer;
 					}
 				}
 			}
 			
-			while (loadedSector[bufferForSDRead] == getSectorSending()){
+			while (bufferForSDRead == bufferForDMA){
 				++bufferForSDRead &= (CACHED_SECS-1);
 			}
 			
@@ -253,16 +256,20 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				// Load the next sector
 				g_discImage.readSector(pioSamples[bufferForSDRead], currentSector - c_leadIn, s_dataLocation, cdScramblingLUT);
 #if DEBUG_I2S
-				endTime = time_us_64();
-				DEBUG_PRINT("read time: %lluus (%d)\n", endTime-startTime, currentSector);
+				endTime = time_us_64()-startTime;
+				
+				if (endTime > 3000)
+				{
+					DEBUG_PRINT("read time: %lluus (%d)\n", endTime, currentSector);
+				}
 #endif
 			}
 			
 			loadedSector[bufferForSDRead] = currentSector;
 			bufferForDMA = bufferForSDRead;
-			++bufferForSDRead &= (CACHED_SECS - 1);
 			lastSector = currentSector;
 		}
+
 continue_transfer:
 
         // Start the next transfer if the DMA channel is not busy

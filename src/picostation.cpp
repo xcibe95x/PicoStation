@@ -30,7 +30,7 @@
 
 // To-do: Make an ODE class and move these to members
 static picostation::I2S m_i2s;
-static picostation::MechCommand m_mechCommand;
+picostation::MechCommand m_mechCommand;
 
 bool picostation::g_subqDelay = false;  // core0: r/w
 
@@ -133,9 +133,17 @@ static void __time_critical_func(mech_irq_hnd)() {
 	pio_interrupt_clear(PIOInstance::MECHACON, 0);
 }
 
+static void __time_critical_func(send_subq)(const int currentSector)
+{
+	picostation::SubQ subq(&picostation::g_discImage);
+	
+	subq.start_subq(currentSector);
+	picostation::g_subqDelay = false;
+}
+
 [[noreturn]] void __time_critical_func(picostation::core0Entry)() {
-    SubQ subq(&g_discImage);
-    uint64_t subqDelayTime = 0;
+    //SubQ subq(&g_discImage);
+    //uint64_t subqDelayTime = 0;
 
     g_coreReady[0] = true;
     while (!g_coreReady[1].Load()) {
@@ -170,8 +178,9 @@ static void __time_critical_func(mech_irq_hnd)() {
         } else if (!g_driveMechanics.isSledStopped()) {
             g_driveMechanics.moveSled(m_mechCommand);
         } else if (m_mechCommand.getSens(SENS::GFS)) {
-            if (g_subqDelay) {
-                if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) {
+            //if (g_subqDelay) {
+                /*if ((time_us_64() - subqDelayTime) > c_MaxSubqDelayTime) 
+                {
                     //g_subqDelay = false;
                     //subq.start_subq(currentSector);
 
@@ -185,11 +194,17 @@ static void __time_critical_func(mech_irq_hnd)() {
                         NULL, true);
                     subq.start_subq(currentSector);
                     g_subqDelay = false;
-                }
-            } else if (m_i2s.getSectorSending() == currentSector) {
+                }*/
+            /*} else*/ if (m_i2s.getSectorSending() == currentSector) {
                 g_driveMechanics.moveToNextSector();
                 g_subqDelay = true;
-                subqDelayTime = m_i2s.getLastSectorTime();
+                //subqDelayTime = m_i2s.getLastSectorTime();
+                
+                add_alarm_in_us( time_us_64() - m_i2s.getLastSectorTime() + c_MaxSubqDelayTime,
+					[](alarm_id_t id, void *user_data) -> int64_t {
+						send_subq((const int) user_data);
+						return 0;
+					}, (void *) currentSector, true);
             }
         }
     }
