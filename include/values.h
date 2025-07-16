@@ -71,22 +71,22 @@ PIO const SUBQ = pio0;
 
 namespace SM {
 // PIO0
-constexpr unsigned int I2S_DATA = 0;
-constexpr unsigned int MECHACON = 1;
-constexpr unsigned int SOCT = 2;
-constexpr unsigned int SUBQ = 3;
+constexpr uint32_t I2S_DATA = 0;
+constexpr uint32_t MECHACON = 1;
+constexpr uint32_t SOCT = 2;
+constexpr uint32_t SUBQ = 3;
 }  // namespace SM
 
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
 
 constexpr uint32_t c_trackMin = 0;
-constexpr uint32_t c_trackMax = 20892;  // 73:59:58
+extern uint32_t c_trackMax;
 constexpr int c_sectorMin = 0;
 extern int c_sectorMax;
 
-constexpr unsigned int c_MaxTrackMoveTime = 100;    // uS
-constexpr unsigned int c_MaxSubqDelayTime = 3333;  // uS
+constexpr uint32_t c_MaxTrackMoveTime = 139;
+constexpr uint32_t c_MaxSubqDelayTime = 3333;  // uS
 
 
 constexpr size_t c_cdSamplesSize = 588;
