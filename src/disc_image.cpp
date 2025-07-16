@@ -14,6 +14,7 @@
 #include "third_party/posix_file.h"
 #include "values.h"
 #include "global.h"
+#include "utils.h"
 
 #if DEBUG_CUE
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
@@ -276,9 +277,9 @@ picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSub
 
     subqdata.crc = 0;
     
-    /*if (subqdata.ctrladdr != 1) {
+    if (subqdata.ctrladdr != 1) {
 		return subqdata;
-	}*/
+	}
 	
     switch (g_audioCtrlMode) {
         case audioControlModes::NORMAL:
@@ -374,6 +375,13 @@ FRESULT __time_critical_func(picostation::DiscImage::load)(const TCHAR *targetCu
     
     c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0] + 4650;
     
+    int i = 0;
+	
+	for (c_trackMax = 0; i < c_sectorMax; c_trackMax++)
+	{
+		i = trackToSector(c_trackMax);
+	}
+    
     return FR_OK;
 }
 
@@ -409,6 +417,9 @@ void __time_critical_func(picostation::DiscImage::makeDummyCue)() {
         DEBUG_PRINT("%d\t%d\t%d\t%d\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
                     m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
     }
+    
+    c_trackMax = 20892;  // 73:59:58
+	c_sectorMax = 333000;  // 74:00:00
 }
 
 void __time_critical_func(picostation::DiscImage::readSector)(void *buffer, const int sector, DataLocation location, const uint16_t *scramling) {
