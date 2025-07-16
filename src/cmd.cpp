@@ -111,10 +111,10 @@ inline void picostation::MechCommand::autoSequence(const uint32_t latched)  // $
     } else {
         m_autoSeqTrack = track + tracks_to_move;
     }
-
+    
     if (!m_autoSeqAlarmID) {
-        m_autoSeqAlarmID = add_alarm_in_ms(
-            15,
+        m_autoSeqAlarmID = add_alarm_in_us(
+            140,
             [](alarm_id_t id, void *user_data) -> int64_t {
                 picostation::MechCommand *mechCommand = static_cast<picostation::MechCommand *>(user_data);
 
@@ -304,6 +304,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
         case TopLevelCommands::MODE_SPEC:  // $8X commands - MODE specification
             modeSpec(latched);
             break;
+
         case TopLevelCommands::FUNC_SPEC:  // $9X commands - Function specification
             funcSpec(latched);
             break;
@@ -315,6 +316,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)() {
         case TopLevelCommands::MONITOR_COUNT:  // $BX commands - This command sets the traverse monitor count.
             g_driveMechanics.setCountTrack((latched & 0xFFFF0) >> 4);
             break;
+
         case TopLevelCommands::SPINDLE:  // $EX commands - Spindle motor control
             spindleControl(latched);
             break;
