@@ -28,11 +28,16 @@ SOFTWARE.
 #include "ff.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void posix_destroy(struct CueFile *file) {}
 
 static void posix_close(struct CueFile *file, struct CueScheduler *scheduler, void (*cb)(struct CueFile *, struct CueScheduler *)) {
     FIL *fp = (FIL *)file->opaque;
+    if (fp->cltbl)
+    {
+		free(fp->cltbl);
+	}
     f_close(fp);
     free(fp);
     File_schedule_close(file, scheduler, cb);
@@ -82,6 +87,35 @@ struct CueFile *create_posix_file(struct CueFile *file, const char *filename, ui
     {
 		free(fp);
 		return NULL;
+	}
+    
+    DWORD cltbltmp = 1;
+    fp->cltbl = &cltbltmp;
+    
+    FRESULT r = f_lseek(fp, CREATE_LINKMAP);
+    
+    if (r == FR_NOT_ENOUGH_CORE)
+	{
+		size_t count = fp->cltbl[0];
+		DWORD *cltbl = (DWORD *)malloc(count * sizeof(DWORD));
+		
+		if (cltbl)
+		{
+			memset(cltbl, 0, count * sizeof(DWORD));
+			cltbl[0] = count;
+			fp->cltbl = cltbl;
+			r = f_lseek(fp, CREATE_LINKMAP);
+			
+			if(r != FR_OK)
+			{
+				free(cltbl);
+			}
+		}
+	}
+    
+    if(r != FR_OK)
+	{
+		fp->cltbl = NULL;
 	}
     
     file->opaque = fp;
