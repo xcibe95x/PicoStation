@@ -9,7 +9,7 @@
 #include "ff.h"
 #include "disc_image.h"
 
-#define CACHED_SECS		4 /* Only 2, 4, 8, 16, 32 */
+#define CACHED_SECS		32 /* Only 2, 4, 8, 16, 32 */
 
 namespace picostation {
 class MechCommand;
