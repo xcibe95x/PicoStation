@@ -27,7 +27,7 @@
 #include "listingBuilder.h"
 
 #if DEBUG_I2S
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#define DEBUG_PRINT printf
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
@@ -39,17 +39,21 @@ pseudoatomic<int> g_entryOffset;
 picostation::DiscImage::DataLocation s_dataLocation = picostation::DiscImage::DataLocation::RAM;
 static FATFS s_fatFS;
 
-static uint16_t *generateScramblingLUT() {
+static uint16_t *generateScramblingLUT()
+{
     static uint16_t ScramblingLUT[1176] = {0};
     int shift = 1;
 	
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < 6; i++)
+	{
 		ScramblingLUT[i] = 0;
 	}
 	
-    for (size_t i = 6; i < 1176; i++) {
+    for (size_t i = 6; i < 1176; i++)
+    {
         uint8_t upper = shift & 0xFF;
-        for (size_t j = 0; j < 8; j++) {
+        for (size_t j = 0; j < 8; j++)
+        {
             unsigned bit = ((shift & 1) ^ ((shift & 2) >> 1)) << 15;
             shift = (bit | shift) >> 1;
         }
@@ -58,7 +62,8 @@ static uint16_t *generateScramblingLUT() {
 
         ScramblingLUT[i] = (lower << 8) | upper;
 
-        for (size_t j = 0; j < 8; j++) {
+        for (size_t j = 0; j < 8; j++)
+        {
             unsigned bit = ((shift & 1) ^ ((shift & 2) >> 1)) << 15;
             shift = (bit | shift) >> 1;
         }
@@ -67,14 +72,17 @@ static uint16_t *generateScramblingLUT() {
     return ScramblingLUT;
 }
 
-void picostation::I2S::mountSDCard() {
+void picostation::I2S::mountSDCard()
+{
     FRESULT fr = f_mount(&s_fatFS, "", 1);
-    if (FR_OK != fr) {
+    if (FR_OK != fr)
+    {
         panic("f_mount error: (%d)\n", fr);
     }
 }
 
-int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count) {
+int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count)
+{
     int channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_read_increment(&c, true);
@@ -87,7 +95,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     return channel;
 }
 
-[[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand) {
+[[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand)
+{
     picostation::ModChip modChip;
     static uint32_t pioSamples[CACHED_SECS][1176];
     static uint16_t *cdScramblingLUT = generateScramblingLUT();
@@ -95,7 +104,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     static uint8_t bufferForDMA = 1;
     static uint8_t bufferForSDRead = 0;
     static int currentSector = -1;
-    
+    lastSector = -1;
     m_sectorSending = -1;
     static uint32_t loadedImageIndex = 0;
     static uint16_t img_count;
@@ -133,15 +142,15 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     picostation::DirectoryListing::gotoRoot();
     picostation::DirectoryListing::getDirectoryEntries(0);
 
-    while (true) {
-        // Update latching, output SENS
-
+    while (true)
+    {
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
         
         modChip.sendLicenseString(currentSector, mechCommand);
 		
-		if (menu_active && needFileCheckAction.Load() != picostation::FileListingStates::IDLE) {
+		if (menu_active && needFileCheckAction.Load() != picostation::FileListingStates::IDLE)
+		{
 			switch (needFileCheckAction.Load())
 			{
 				case picostation::FileListingStates::GOTO_ROOT:
@@ -199,7 +208,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				
 				case picostation::FileListingStates::PROCESS_FILES:
 				{
-					if (!listReadyState.Load()) {
+					if (!listReadyState.Load())
+					{
 						picostation::DirectoryListing::getDirectoryEntries(g_entryOffset.Load());
 						listReadyState = 1;
 					}
@@ -210,14 +220,17 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 					break;
 			}
 		}
-		else if (s_doorPending && !menu_active) {
+		else if (s_doorPending && !menu_active)
+		{
 			s_doorPending = false;
-			if (++loadedImageIndex > img_count)	{
+			if (++loadedImageIndex > img_count)
+			{
 				loadedImageIndex = 0;
 			}
 			
 			char filePath[c_maxFilePathLength + 1];
 			picostation::DirectoryListing::getPath(loadedImageIndex, filePath);
+			g_discImage.unload();
 			g_discImage.load(filePath);
 			
 			reinitI2S();
@@ -225,11 +238,14 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 		}
 		
         // Data sent via DMA, load the next sector
-        if (currentSector != lastSector && currentSector >= 4650) {
+        if (currentSector != lastSector && currentSector >= 4650 && i2s_state)
+        {
 			if (!menu_active)
 			{
-				for (int i = 0; i < CACHED_SECS; i++) {
-					if (loadedSector[i] == currentSector) {
+				for (int i = 0; i < CACHED_SECS; i++)
+				{
+					if (loadedSector[i] == currentSector)
+					{
 						// already in cache
 						bufferForDMA = i;
 						lastSector = currentSector;
@@ -241,15 +257,18 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 				}
 			}
 			
-			while (bufferForSDRead == bufferForDMA){
+			while (bufferForSDRead == bufferForDMA)
+			{
 				++bufferForSDRead &= (CACHED_SECS-1);
 			}
 			
-			if (menu_active && needFileCheckAction.Load() == picostation::FileListingStates::PROCESS_FILES && listReadyState.Load() && currentSector == 4750) {
+			if (menu_active && needFileCheckAction.Load() == picostation::FileListingStates::PROCESS_FILES && listReadyState.Load() && currentSector == 4750)
+			{
 				g_discImage.buildSector(currentSector - c_leadIn, pioSamples[bufferForSDRead], picostation::DirectoryListing::getFileListingData(), cdScramblingLUT);
 				needFileCheckAction = picostation::FileListingStates::IDLE;
 			}
-			else {
+			else
+			{
 #if DEBUG_I2S
 				startTime = time_us_64();
 #endif
@@ -258,7 +277,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 #if DEBUG_I2S
 				endTime = time_us_64()-startTime;
 				
-				if (endTime > 3000)
+				//if (endTime > 3000)
 				{
 					DEBUG_PRINT("read time: %lluus (%d)\n", endTime, currentSector);
 				}
@@ -273,28 +292,36 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 continue_transfer:
 
         // Start the next transfer if the DMA channel is not busy
-        if (!dma_channel_is_busy(dmaChannel)) {
-			if (currentSector >= 4650) {
+        if (!dma_channel_is_busy(dmaChannel) && i2s_state)
+        {
+			if (currentSector >= 4650)
+			{
 				m_sectorSending = loadedSector[bufferForDMA];
 				m_lastSectorTime = time_us_64();
 
 				dma_hw->ch[dmaChannel].read_addr = (uint32_t)pioSamples[bufferForDMA];
 
 				// Sync with the I2S clock
-				while (gpio_get(Pin::LRCK) == 1) {
+				while (gpio_get(Pin::LRCK) == 1)
+				{
 					tight_loop_contents();
 				}
-				while (gpio_get(Pin::LRCK) == 0) {
+				
+				while (gpio_get(Pin::LRCK) == 0)
+				{
 					tight_loop_contents();
 				}
 
 				dma_channel_start(dmaChannel);
 			}
-			else if(picostation::g_subqDelay == false){
+			else if(picostation::g_subqDelay == false)
+			{
 				m_sectorSending = currentSector;
 				m_lastSectorTime = time_us_64();
 			}
         }
+        
+        //lastSector = currentSector;
     }
     __builtin_unreachable();
 }

@@ -20,7 +20,7 @@
 
 #define SPI_FILL_CHAR (0xFF)
 
-#define SD_BAUD_RATE (50 * 1000 * 1000)
+#define SD_BAUD_RATE (30 * 1000 * 1000)
 
 #define spi_set_cs(val) gpio_put(GPIO_SD_CS, val);
 

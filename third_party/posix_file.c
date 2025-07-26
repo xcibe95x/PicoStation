@@ -34,13 +34,23 @@ static void posix_destroy(struct CueFile *file) {}
 
 static void posix_close(struct CueFile *file, struct CueScheduler *scheduler, void (*cb)(struct CueFile *, struct CueScheduler *)) {
     FIL *fp = (FIL *)file->opaque;
+    
+    if (!fp)
+	{
+		return;
+	}
+	
     if (fp->cltbl)
     {
 		free(fp->cltbl);
 	}
     f_close(fp);
     free(fp);
-    File_schedule_close(file, scheduler, cb);
+    
+    if (scheduler)
+	{
+		File_schedule_close(file, scheduler, cb);
+	}
 }
 
 static void posix_size(struct CueFile *file, struct CueScheduler *scheduler, int compressed,

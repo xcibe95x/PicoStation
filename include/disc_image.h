@@ -17,18 +17,14 @@ class DiscImage {
 
     enum DataLocation {
         RAM,
-        SDCard,
-        USBSerial,
-        USBStorage,
+        SDCard
     };
 
     void buildSector(const int sector, uint32_t *buffer, uint16_t *userData, const uint16_t *scramling);
     FRESULT load(const TCHAR *targetCue);
+    void unload();
     SubQ::Data generateSubQ(const int sector);
     bool hasData() { return m_hasData; };
-    bool isCurrentTrackData() {
-        return m_cueDisc.tracks[m_currentLogicalTrack].trackType == CueTrackType::TRACK_TYPE_DATA;
-    };
     void makeDummyCue();
     void readSector(void *buffer, const int sector, DataLocation location, const uint16_t *scramling);
     void readSectorRAM(void *buffer, const int sector, const uint16_t *scramling);

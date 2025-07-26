@@ -7,8 +7,7 @@
 #include <cstdio>
 #include <csignal>
 
-uint32_t c_trackMax = 20892;  // 73:59:58
-int c_sectorMax = 333000;  // 74:00:00
+uint32_t c_sectorMax = 333000;  // 74:00:00
 
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);  // Increase the VREG voltage to 1.15V for the faster clock speed

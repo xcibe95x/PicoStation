@@ -12,7 +12,7 @@
 #include "values.h"
 
 #if DEBUG_SUBQ
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#define DEBUG_PRINT printf
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif

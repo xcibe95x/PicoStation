@@ -21,6 +21,7 @@ class I2S {
     bool menu_active;
     bool s_doorPending;
     
+    void i2s_set_state(uint8_t state) { i2s_state = state; }
     int getSectorSending() { return m_sectorSending.Load(); }
     uint64_t getLastSectorTime() { return m_lastSectorTime.Load(); }
 	void reinitI2S() {
@@ -28,6 +29,7 @@ class I2S {
 			loadedSector[i] = -2;
 		}
 		lastSector = -1;
+		i2s_state = 0;
 	}
 
     [[noreturn]] void start(MechCommand &mechCommand);
@@ -38,6 +40,7 @@ class I2S {
 	
 	int loadedSector[CACHED_SECS];
 	int lastSector;
+	uint8_t i2s_state = 0;
 	
     pseudoatomic<int> m_sectorSending;
     pseudoatomic<uint64_t> m_lastSectorTime;

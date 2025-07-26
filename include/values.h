@@ -58,10 +58,6 @@ enum : unsigned int {
 };
 }
 
-namespace SledMove {
-enum : int { REVERSE = -1, STOP = 0, FORWARD = 1 };
-}
-
 namespace PIOInstance {
 PIO const I2S_DATA = pio0;
 PIO const MECHACON = pio0;
@@ -80,12 +76,10 @@ constexpr uint32_t SUBQ = 3;
 constexpr int c_leadIn = 4500;
 constexpr int c_preGap = 150;
 
-constexpr uint32_t c_trackMin = 0;
-extern uint32_t c_trackMax;
 constexpr int c_sectorMin = 0;
 extern int c_sectorMax;
 
-constexpr uint32_t c_MaxTrackMoveTime = 139;
+//uint32_t c_MaxTrackMoveTime = 15;//35714;//139;
 constexpr uint32_t c_MaxSubqDelayTime = 3333;  // uS
 
 
