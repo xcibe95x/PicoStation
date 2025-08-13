@@ -238,7 +238,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 		}
 		
         // Data sent via DMA, load the next sector
-        if (currentSector != lastSector && currentSector >= 4650 && i2s_state)
+        if (currentSector != lastSector && currentSector >= 4650 && currentSector < c_sectorMax-2)
         {
 			if (!menu_active)
 			{
@@ -277,7 +277,7 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 #if DEBUG_I2S
 				endTime = time_us_64()-startTime;
 				
-				//if (endTime > 3000)
+				if (endTime > 5000)
 				{
 					DEBUG_PRINT("read time: %lluus (%d)\n", endTime, currentSector);
 				}
@@ -294,7 +294,7 @@ continue_transfer:
         // Start the next transfer if the DMA channel is not busy
         if (!dma_channel_is_busy(dmaChannel) && i2s_state)
         {
-			if (currentSector >= 4650)
+			if (currentSector >= 4650 && currentSector < c_sectorMax-2)
 			{
 				m_sectorSending = loadedSector[bufferForDMA];
 				m_lastSectorTime = time_us_64();
@@ -320,8 +320,6 @@ continue_transfer:
 				m_lastSectorTime = time_us_64();
 			}
         }
-        
-        //lastSector = currentSector;
     }
     __builtin_unreachable();
 }

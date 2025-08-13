@@ -43,7 +43,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 		{
 			if(!g_driveMechanics.isSledStopped())
 			{
-				DEBUG_PRINT("%c", (dir == 0) ? '+' : '-');
+				DEBUG_PRINT("%c\n", (dir == 0) ? '+' : '-');
 
 				if((sled_break == 0) || (prev_dir == dir))
 				{
@@ -54,27 +54,12 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 				sled_break = 1;
 				prev_dir = dir;
 			}
-			
-			/*switch(command.tracking_mode.tracking)
-			{
-				case SLED_FORWARD:
-				{
-					g_driveMechanics.setSector(1, 0);
-					break;
-				}
-
-				case SLED_REVERSE:
-				{
-					g_driveMechanics.setSector(1, 1);
-					break;
-				}
-				
-			}*/
 
 			switch(command.tracking_mode.sled)
 			{		
 				case SLED_FORWARD:
 				{
+					DEBUG_PRINT("SLED FORWARD\n");
 					dir = 0;
 					m_i2s.i2s_set_state(0);
 					g_driveMechanics.startSled();
@@ -83,6 +68,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 
 				case SLED_REVERSE:
 				{
+					DEBUG_PRINT("SLED REVERSE\n");
 					dir = 1;
 					m_i2s.i2s_set_state(0);
 					g_driveMechanics.startSled();
@@ -94,36 +80,34 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 		
 		case MECH_CMD_AUTO_SEQUENCE:
 		{
-			m_i2s.i2s_set_state(0);
-
 	        switch(command.aseq_cmd.cmd)
 	        {
 	            case ASEQ_CMD_CANCEL:
+	            	m_i2s.i2s_set_state(1);
 	            	setSens(SENS::XBUSY, false);
-					break;
-
-	            case ASEQ_CMD_FINE_SEARCH:
-					break;
+					return;
 				
 	            case ASEQ_CMD_FOCUS_ON:
-					setSens(SENS::FOK, true);
+					DEBUG_PRINT("ASEQ FOCUS ON\n");
+					m_i2s.i2s_set_state(0);
 					setSens(SENS::XBUSY, true);
+					setSens(SENS::FOK, true);
+					add_alarm_in_ms(15, [](alarm_id_t id, void *user_data) -> int64_t 
+					{
+						picostation::MechCommand *mechCommand = static_cast<picostation::MechCommand *>(user_data);
+						mechCommand->resetXBUSY();
+						return 0;
+					}, this, true);
 					break;
 
 				case ASEQ_CMD_1TRK_JUMP:
-	            	g_driveMechanics.setSector(1, command.aseq_cmd.dir);
-					break;
-
-	            case ASEQ_CMD_10TRK_JUMP:
-	            	g_driveMechanics.setSector(10, command.aseq_cmd.dir);
+					//DEBUG_PRINT("ASEQ 1TRK %c\n", command.aseq_cmd.dir ? '-' : '+');
+					g_driveMechanics.setSector(1, command.aseq_cmd.dir);
 					break;
 
 	            case ASEQ_CMD_2NTRK_JUMP:
-	            	g_driveMechanics.setSector(m_jumpTrack * 2, command.aseq_cmd.dir);
-					break;
-
-	            case ASEQ_CMD_MTRK_JUMP:
-	            	g_driveMechanics.setSector(m_jumpTrack, command.aseq_cmd.dir);
+					//DEBUG_PRINT("ASEQ 2NTRK (%d) %c\n", m_jumpTrack << 1, command.aseq_cmd.dir ? '-' : '+');
+	            	g_driveMechanics.setSector(m_jumpTrack << 1, command.aseq_cmd.dir);
 					break;
 			}
 			break;
@@ -155,26 +139,24 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			break;
 		}
 		
-		case MECH_CMD_TRAVERS_MONITOR_COUNTER:
-		{
-			g_driveMechanics.setCountTrack(command.aseq_track_count.count);
-			break;
-		}
-		
 		case MECH_CMD_CLV_MODE:
 		{
 			sled_break = 0;
 			switch(command.clv_mode.mode)
 			{
 				case CLV_MODE_STOP:
-				case CLV_MODE_BRAKE:
 					m_i2s.i2s_set_state(0);
+					
 					setSens(SENS::GFS, false);
-					DEBUG_PRINT("T");
+					DEBUG_PRINT("T\n");
 					break;
-
+				
+				case CLV_MODE_BRAKE:
+					DEBUG_PRINT("B\n");
+					break;
+					
 				case CLV_MODE_KICK:
-					DEBUG_PRINT("K");
+					DEBUG_PRINT("K\n");
 					break;
 
 
@@ -182,16 +164,9 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 				case CLV_MODE_CLVH:
 				case CLV_MODE_CLVP:
 				case CLV_MODE_CLVA:
-					if(g_driveMechanics.servo_valid())
-					{
-						m_i2s.i2s_set_state(1);
-						setSens(SENS::GFS, true);
-						DEBUG_PRINT("S");
-					}
-					else
-					{
-						DEBUG_PRINT("E");
-					}
+					m_i2s.i2s_set_state(1);
+					setSens(SENS::GFS, true);
+					setSens(SENS::XBUSY, false);
 					break;
 			}
 			break;
@@ -295,6 +270,12 @@ void __time_critical_func(picostation::MechCommand::setSens)(const size_t what, 
 bool picostation::MechCommand::getSoct() { return m_soctEnabled.Load(); }
 void picostation::MechCommand::setSoct(const bool new_value) { m_soctEnabled = new_value; }
 
+void __time_critical_func(picostation::MechCommand::resetXBUSY)()
+{
+	m_i2s.i2s_set_state(1);
+	setSens(SENS::XBUSY, false);
+}
+
 void __time_critical_func(picostation::MechCommand::updateMech)() 
 {
     while (pio_sm_get_rx_fifo_level(PIOInstance::MECHACON, SM::MECHACON))
@@ -304,11 +285,6 @@ void __time_critical_func(picostation::MechCommand::updateMech)()
         m_latched = m_latched | (c << 16);
         m_currentSens = c >> 4;
     }
-    //gpio_put(Pin::SENS, m_sensData[m_currentSens]);
-}
-
-void __time_critical_func(picostation::MechCommand::updateSens)()
-{
-	gpio_put(Pin::SENS, m_sensData[m_currentSens]);
+    gpio_put(Pin::SENS, m_sensData[m_currentSens]);
 }
 

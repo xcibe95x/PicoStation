@@ -2,25 +2,45 @@
 
 #include <algorithm>
 #include <math.h>
-
+#include <stdio.h>
 #include "i2s.h"
 #include "cmd.h"
 #include "values.h"
+#include "logging.h"
+
+#if DEBUG_CMD
+#define DEBUG_PRINT printf
+#else
+#define DEBUG_PRINT(...) while (0)
+#endif
+
+#define ZONE_CNT 	14
+#define ZONE_MAX 	ZONE_CNT-1
 
 extern picostation::I2S m_i2s;
-uint32_t zone[] = 			{13500, 27000, 45000, 63000, 85500, 103500, 130500, 153000, 175500, 207000, 234000, 265500, 297000, 999999};
-uint32_t sect_per_track[] = { 	10,	   11,    12,    13,    14,     15,     16,     17,     18,     19,     20,     21,     22,     23};
+uint32_t zone[ZONE_CNT] = 			{13500, 27000, 45000, 63000, 85500, 103500, 130500, 153000, 175500, 207000, 234000, 265500, 297000, 999999};
+uint32_t sect_per_track[ZONE_CNT] = { 	10,	   11,    12,    13,    14,     15,     16,     17,     18,     19,     20,     21,     22,     23};
+//const uint32_t zone[ZONE_CNT] = 			{10168, 21616, 34326, 48318, 63570, 80106, 97900, 116980, 137316, 158940, 181818, 205986, 231406, 258118, 286080, 999999};
+//const uint32_t sect_per_track[ZONE_CNT] =   {    9,    10,    11,    12,    13,    14,    15,     16,     17,     18,     19,     20,     21,     22,     23,     24};
+
+//inline uint32_t zone[ZONE_CNT] = 			{7805, 24642, 43136, 63300, 85109, 108576, 133716, 160499, 188939, 219056, 250812, 284226, 319319, 333005, 999999};
+//inline uint32_t sect_per_track[ZONE_CNT] = {   10,	  11,    12,    13,    14,     15,     16,     17,     18,     19,     20,     21,     22,     23,     24};
 
 picostation::DriveMechanics picostation::g_driveMechanics;
 
-void picostation::DriveMechanics::moveToNextSector()
+void __time_critical_func(picostation::DriveMechanics::moveToNextSector)()
 {
 	if(m_sector < c_sectorMax){
 		m_sector++;
-	} 
+	}
+	
+	if (m_sector > zone[cur_zone] && cur_zone < ZONE_MAX)
+	{
+		cur_zone++;
+	}
 }
 
-void picostation::DriveMechanics::setSector(uint32_t step, bool rev)
+void __time_critical_func(picostation::DriveMechanics::setSector)(uint32_t step, bool rev)
 {
 	m_i2s.i2s_set_state(0);
 
@@ -36,11 +56,12 @@ void picostation::DriveMechanics::setSector(uint32_t step, bool rev)
             if(m_sector > c_sectorMax)
             {
                 m_sector = c_sectorMax;
+                cur_zone = ZONE_MAX;
                 break;
             }
             
             step -= do_steps;
-            if(step > 0)
+            if(step > 0 && cur_zone < ZONE_MAX)
             {
                 cur_zone++;
             }
@@ -69,6 +90,7 @@ void picostation::DriveMechanics::setSector(uint32_t step, bool rev)
             else
             {
                 m_sector = 0;
+                cur_zone = 0;
                 break;
             }
             
@@ -80,19 +102,22 @@ void picostation::DriveMechanics::setSector(uint32_t step, bool rev)
             }
         }
 	}
+	
+	DEBUG_PRINT("cur sec %d\n", m_sector);
 }
 
-bool picostation::DriveMechanics::servo_valid()
+bool __time_critical_func(picostation::DriveMechanics::servo_valid)()
 {
 	return m_sector < c_sectorMax;
 
 }
 
-void picostation::DriveMechanics::moveSled(picostation::MechCommand &mechCommand){
+void __time_critical_func(picostation::DriveMechanics::moveSled)(picostation::MechCommand &mechCommand){
     if ((time_us_64() - m_sledTimer) > c_MaxTrackMoveTime)
     {
 		cur_track_counter++;
-		//if (!(cur_track_counter & (m_trk_cnt - 1)))
+		
+		if (!(cur_track_counter & 255))
 		{
 			mechCommand.setSens(SENS::COUT, !mechCommand.getSens(SENS::COUT));
 		}
@@ -101,15 +126,10 @@ void picostation::DriveMechanics::moveSled(picostation::MechCommand &mechCommand
     }
 }
 
-void picostation::DriveMechanics::startSled()
+void __time_critical_func(picostation::DriveMechanics::startSled)()
 {
 	sled_work = 1;
 	cur_track_counter = 0;
 	m_sledTimer = time_us_64();
-}
-
-void picostation::DriveMechanics::setCountTrack(uint16_t track_cnt)
-{
-	m_trk_cnt = track_cnt;
 }
 
