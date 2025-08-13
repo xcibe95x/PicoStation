@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "drive_mechanics.h"
 #include "disc_image.h"
 #include "hardware/pio.h"
 #include "logging.h"
@@ -23,8 +24,13 @@ void picostation::SubQ::printf_subq(const uint8_t *data) {
     }
 }
 
-void picostation::SubQ::start_subq(const int sector) {
+void __time_critical_func(picostation::SubQ::start_subq)(const int sector) {
     const SubQ::Data tracksubq = m_discImage->generateSubQ(sector);
+    
+    if (!g_driveMechanics.isSledStopped())
+	{
+		return;
+	}
     
     gpio_put(Pin::SCOR, 1);
 	
@@ -53,9 +59,9 @@ void picostation::SubQ::start_subq(const int sector) {
 #endif
 }
 
-void picostation::SubQ::stop_subq() {
+/*void picostation::SubQ::stop_subq() {
     pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, false);
     pio_sm_restart(PIOInstance::SUBQ, SM::SUBQ);
     pio_sm_clear_fifos(PIOInstance::SUBQ, SM::SUBQ);
     pio_sm_exec(PIOInstance::SUBQ, SM::SUBQ, pio_encode_jmp(g_subqOffset));
-}
+}*/

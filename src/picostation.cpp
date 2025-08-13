@@ -80,7 +80,7 @@ static picostation::PWMSettings pwmMainClock =
 
 static void initPWM(picostation::PWMSettings *settings);
 
-static void interruptHandler(unsigned int gpio, uint32_t events)
+static void __time_critical_func(interruptHandler)(unsigned int gpio, uint32_t events)
 {
     static uint64_t lastLowEvent = 0;
 	static uint64_t lastLowEventDoor = 0;
@@ -189,9 +189,6 @@ static void __time_critical_func(send_subq)(const int currentSector)
             }
 			reset();
 		}
-
-        // output SENS
-        m_mechCommand.updateSens();
 
         const int currentSector = g_driveMechanics.getSector();
 
@@ -350,7 +347,7 @@ static void initPWM(picostation::PWMSettings *settings)
     pwm_set_both_levels(settings->sliceNum, settings->level, settings->level);
 }
 
-void picostation::updatePlaybackSpeed()
+void __time_critical_func(picostation::updatePlaybackSpeed)()
 {
     static constexpr unsigned int c_clockDivNormal = 4;
     static constexpr unsigned int c_clockDivDouble = 2;

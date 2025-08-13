@@ -10,7 +10,6 @@
 #include "logging.h"
 #include "picostation.h"
 #include "subq.h"
-#include "third_party/iec-60908b/edcecc.h"
 #include "third_party/posix_file.h"
 #include "values.h"
 #include "global.h"
@@ -163,8 +162,6 @@ void __time_critical_func(picostation::DiscImage::buildSector)(const int sector,
 	}
 
     // EDC/ECC - 4 bytes
-    // compute_edcecc(buffer);
-    // Don't need to compute EDC/ECC for now, just leave it as 0
     tmp = scramling[1174] << 8;
     if (tmp & 0x100)
     {
@@ -311,14 +308,16 @@ picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSub
         subqdata.aframe = toBCD(msf_abs.ff);
     }
 
-    subqdata.crc = 0;
+    /*subqdata.crc = 0;
     
     if (subqdata.ctrladdr != 1)
     {
 		return subqdata;
-	}
+	}*/
 	
-    switch (g_audioCtrlMode)
+	subqdata.crc = 0xbeef;
+	
+    /*switch (g_audioCtrlMode)
     {
         case audioControlModes::NORMAL:
         case audioControlModes::ALTNORMAL:
@@ -340,7 +339,7 @@ picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSub
             // subqdata.crc = g_audioPeak;
             subqdata.crc = 0xbeef;
             break;
-    }
+    }*/
 
     return subqdata;
 }
@@ -421,27 +420,30 @@ FRESULT __time_critical_func(picostation::DiscImage::load)(const TCHAR *targetCu
         {
             m_hasData = true;
         }
-        DEBUG_PRINT("%d\t%d\t%d\t%d\t%08X\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
-                    m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].file->opaque);
+        DEBUG_PRINT("%d\t%d\t%d\t%d\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
+										   m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
     }
     
-    c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0] + 4650;
+    c_sectorMax = m_cueDisc.tracks[m_cueDisc.trackCount+1].indices[0] + 4652;
     
     return FR_OK;
 }
 
 void __time_critical_func(picostation::DiscImage::unload)()
 {
+	DEBUG_PRINT("Close:\nTrack\tStart\tLength\tPregap\n");
 	if (m_cueDisc.trackCount == 1 || m_cueDisc.tracks[1].file->opaque == m_cueDisc.tracks[2].file->opaque)
 	{
+		DEBUG_PRINT("1\t%d\t%d\t%d\n" , m_cueDisc.tracks[1].indices[0], m_cueDisc.tracks[1].size,
+										m_cueDisc.tracks[1].indices[1] - m_cueDisc.tracks[1].indices[0]);
 		m_cueDisc.tracks[1].file->close(m_cueDisc.tracks[1].file, NULL, NULL);
 	}
 	else
 	{
 		for (size_t i = 1; i <= m_cueDisc.trackCount; i++)
 		{
-			DEBUG_PRINT("%d\t%d\t%d\t%d\t%08X\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
-                    m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].file->opaque);
+			DEBUG_PRINT("%d\t%d\t%d\t%d\n", i, m_cueDisc.tracks[i].indices[0], m_cueDisc.tracks[i].size,
+													 m_cueDisc.tracks[i].indices[1] - m_cueDisc.tracks[i].indices[0]);
 			if (m_cueDisc.tracks[i].file->opaque)
 			{
 				m_cueDisc.tracks[i].file->close(m_cueDisc.tracks[i].file, NULL, NULL);
@@ -527,6 +529,12 @@ void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, co
     size_t i;
 
     const int adjustedSector = sector - c_preGap;
+    if (adjustedSector < 5)
+	{
+		scramble_data((uint32_t *) buffer, (uint16_t *) &loaderImage[adjustedSector * 2352], scramling, 1176);
+		return;
+	}
+    
     for (i = 1; i <= m_cueDisc.trackCount; i++)
     {
         if (adjustedSector < m_cueDisc.tracks[i + 1].indices[0])

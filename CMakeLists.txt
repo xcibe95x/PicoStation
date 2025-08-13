@@ -41,7 +41,7 @@ project(${PROJECT_NAME})
 
 pico_sdk_init()
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 function(addBinaryFileWithSize target name sizeName path)
     set(asmFile "${PROJECT_BINARY_DIR}/includes/${target}_${name}.s")
@@ -109,8 +109,6 @@ target_sources(
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
-    third_party/iec-60908b/edcecc.c
-    third_party/iec-60908b/tables.c
     third_party/posix_file.c
 )
 
@@ -125,7 +123,8 @@ add_subdirectory(third_party/SD-fatfs build)
 
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
-pico_enable_stdio_usb(${PROJECT_NAME} 1)
+pico_enable_stdio_usb(${PROJECT_NAME} 0)
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 
