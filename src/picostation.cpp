@@ -8,6 +8,7 @@
 #include "directory_listing.h"
 #include "drive_mechanics.h"
 #include "hardware/pwm.h"
+#include <hardware/i2c.h>
 #include "i2s.h"
 #include "logging.h"
 #include "main.pio.h"
@@ -16,6 +17,7 @@
 #include "pseudo_atomics.h"
 #include "subq.h"
 #include "values.h"
+#include "si5351.h"
 
 #if DEBUG_MAIN
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
@@ -276,6 +278,20 @@ void picostation::initHW()
     gpio_set_input_hysteresis_enabled(Pin::SQCK, true);
     gpio_set_input_hysteresis_enabled(Pin::RESET, true);
     gpio_set_input_hysteresis_enabled(Pin::CMD_CK, true);
+    
+    i2c_init(i2c0, 400*1000);
+	gpio_set_function(Pin::EXP_I2C0_SDA, GPIO_FUNC_I2C);
+	gpio_set_function(Pin::EXP_I2C0_SCL, GPIO_FUNC_I2C);
+	gpio_pull_up(Pin::EXP_I2C0_SDA);
+	gpio_pull_up(Pin::EXP_I2C0_SCL);
+	
+	// Initialize the Si5351
+	if (si5351_Init(0))
+	{
+		si5351_SetupCLK1(53203425, SI5351_DRIVE_STRENGTH_8MA);
+		si5351_SetupCLK2(53693175, SI5351_DRIVE_STRENGTH_8MA);
+		si5351_EnableOutputs((1<<1) | (1<<2));
+	}
 
     initPWM(&pwmMainClock);
     initPWM(&pwmDataClock);

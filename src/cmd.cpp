@@ -145,9 +145,8 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			switch(command.clv_mode.mode)
 			{
 				case CLV_MODE_STOP:
-					m_i2s.i2s_set_state(0);
-					
 					setSens(SENS::GFS, false);
+					m_i2s.i2s_set_state(0);
 					DEBUG_PRINT("T\n");
 					break;
 				
@@ -164,8 +163,8 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 				case CLV_MODE_CLVH:
 				case CLV_MODE_CLVP:
 				case CLV_MODE_CLVA:
-					m_i2s.i2s_set_state(1);
 					setSens(SENS::GFS, true);
+					m_i2s.i2s_set_state(1);
 					setSens(SENS::XBUSY, false);
 					break;
 			}

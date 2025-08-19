@@ -106,6 +106,7 @@ target_sources(
     src/picostation.cpp
     src/subq.cpp
     src/directory_listing.cpp
+    src/si5351.c
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
@@ -134,6 +135,7 @@ target_link_libraries(
     hardware_pio
     hardware_pwm
     hardware_vreg
+    hardware_i2c
     SD-fatfs
     pico_bootrom
     pico_multicore
