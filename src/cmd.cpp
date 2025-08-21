@@ -83,15 +83,15 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 	        switch(command.aseq_cmd.cmd)
 	        {
 	            case ASEQ_CMD_CANCEL:
+					setSens(SENS::XBUSY, false);
 	            	m_i2s.i2s_set_state(1);
-	            	setSens(SENS::XBUSY, false);
 					return;
 				
 	            case ASEQ_CMD_FOCUS_ON:
 					DEBUG_PRINT("ASEQ FOCUS ON\n");
+					setSens(SENS::FOK, true);
 					m_i2s.i2s_set_state(0);
 					setSens(SENS::XBUSY, true);
-					setSens(SENS::FOK, true);
 					add_alarm_in_ms(15, [](alarm_id_t id, void *user_data) -> int64_t 
 					{
 						picostation::MechCommand *mechCommand = static_cast<picostation::MechCommand *>(user_data);
