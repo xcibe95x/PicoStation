@@ -147,3 +147,28 @@ target_include_directories(SD-fatfs BEFORE INTERFACE
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})
+
+# --- Post-build UF2 byte patch (robust) ---
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(UF2_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.uf2")
+set(PATCH_SCRIPT "${CMAKE_SOURCE_DIR}/tools/patch_boot.py")
+set(PATCH_STAMP  "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.uf2.patched.stamp")
+
+if (EXISTS "${PATCH_SCRIPT}")
+    # Generate a stamp only after UF2 is created and patch script runs
+    add_custom_command(
+        OUTPUT  "${PATCH_STAMP}"
+        COMMAND "${Python3_EXECUTABLE}" "${PATCH_SCRIPT}" "${UF2_FILE}"
+        COMMAND "${CMAKE_COMMAND}" -E touch "${PATCH_STAMP}"
+        DEPENDS "${UF2_FILE}"
+        COMMENT "Patching UF2 (in-place) and creating stamp"
+        VERBATIM
+    )
+
+    # Make a target that depends on the stamp
+    add_custom_target(${PROJECT_NAME}_post ALL DEPENDS "${PATCH_STAMP}")
+
+else()
+    message(WARNING "patch_boot.py not found at ${PATCH_SCRIPT}; skipping UF2 patch step.")
+endif()
