@@ -141,6 +141,46 @@ void toLowerInPlace(char *value) {
     }
 }
 
+bool readConfigLine(FIL &file, char *buffer, const size_t bufferSize) {
+    if (buffer == nullptr || bufferSize == 0) {
+        return false;
+    }
+
+    size_t index = 0;
+    bool sawData = false;
+
+    while (true) {
+        UINT bytesRead = 0;
+        char ch = 0;
+        const FRESULT result = f_read(&file, &ch, 1, &bytesRead);
+
+        if (result != FR_OK) {
+            buffer[index] = '\0';
+            return sawData;
+        }
+
+        if (bytesRead == 0) {
+            buffer[index] = '\0';
+            return sawData;
+        }
+
+        if (ch == '\r') {
+            continue;
+        }
+
+        if (ch == '\n') {
+            buffer[index] = '\0';
+            return true;
+        }
+
+        if (index < bufferSize - 1) {
+            buffer[index++] = ch;
+        }
+
+        sawData = true;
+    }
+}
+
 }  // namespace
 
 void picostation::ModChip::endLicenseSequence() {
@@ -236,7 +276,7 @@ void picostation::ModChip::loadConfiguration() {
     bool lockSet = false;
 
     char line[128];
-    while (f_gets(line, sizeof(line), &file)) {
+    while (readConfigLine(file, line, sizeof(line))) {
         trim(line);
         if (line[0] == '\0' || line[0] == '#' || line[0] == ';') {
             continue;
