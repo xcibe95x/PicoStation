@@ -75,12 +75,7 @@ bool selectUf2Candidate(char *outPath, size_t outSize) {
     char bestName[c_maxFilePathLength + 1] = {0};
     uint32_t bestTimestamp = 0;
 
-    FILINFO entry;
-#if FF_USE_LFN
-    char longName[c_maxFilePathLength + 1];
-    entry.lfname = longName;
-    entry.lfsize = sizeof(longName);
-#endif
+    FILINFO entry{};
 
     while (true) {
         res = f_readdir(&dir, &entry);
@@ -88,11 +83,7 @@ bool selectUf2Candidate(char *outPath, size_t outSize) {
             break;
         }
 
-#if FF_USE_LFN
-        const char *name = (entry.lfname && entry.lfname[0] != '\0') ? entry.lfname : entry.fname;
-#else
         const char *name = entry.fname;
-#endif
 
         if ((entry.fattrib & AM_DIR) != 0 || !hasUf2Extension(name)) {
             continue;
@@ -170,6 +161,11 @@ bool __not_in_flash_func(programUf2Block)(const UF2Block &block, std::array<bool
 }  // namespace
 
 namespace picostation {
+
+bool uf2UpdateAvailable() {
+    char dummyPath[c_maxFilePathLength + 2];
+    return selectUf2Candidate(dummyPath, sizeof(dummyPath));
+}
 
 bool flashFirmwareFromSD(const char *path) {
     char resolvedPath[c_maxFilePathLength + 2] = {0};
@@ -283,6 +279,12 @@ bool flashFirmwareFromSD(const char *path) {
     }
 
     printf("Flashed %lu UF2 blocks from %s\n", static_cast<unsigned long>(processedBlocks), resolvedPath);
+
+    const FRESULT unlinkResult = f_unlink(resolvedPath);
+    if (unlinkResult != FR_OK) {
+        printf("Warning: failed to delete %s after flashing (%d)\n", resolvedPath, unlinkResult);
+    }
+
     return true;
 }
 

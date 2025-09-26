@@ -25,6 +25,7 @@
 #include "subq.h"
 #include "values.h"
 #include "listingBuilder.h"
+#include "uf2_flasher.h"
 
 #if DEBUG_I2S
 #define DEBUG_PRINT printf
@@ -134,7 +135,10 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     uint64_t endTime;
 #endif
 
-	mountSDCard();
+    mountSDCard();
+
+    const bool autoFlashAvailable = picostation::uf2UpdateAvailable();
+    bool autoFlashRequested = false;
 
     g_discImage.makeDummyCue();
 	
@@ -145,6 +149,12 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     while (true)
     {
+        if (!autoFlashRequested && autoFlashAvailable)
+        {
+            autoFlashRequested = true;
+            picostation::requestFirmwareFlash();
+        }
+
         if (picostation::g_core1PauseRequest.Load())
         {
             if (!picostation::g_core1Paused.Load())

@@ -422,8 +422,8 @@ static bool handleFirmwareFlashRequest()
     gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_LOW, false);
     gpio_set_irq_enabled(Pin::XLAT, GPIO_IRQ_EDGE_FALL, false);
 
-    g_core1PauseRequest = true;
-    while (!g_core1Paused.Load())
+    picostation::g_core1PauseRequest = true;
+    while (!picostation::g_core1Paused.Load())
     {
         tight_loop_contents();
     }
@@ -433,7 +433,7 @@ static bool handleFirmwareFlashRequest()
         dma_channel_abort(m_i2s.dmaChannel);
     }
     m_i2s.i2s_set_state(0);
-    g_driveMechanics.resetDrive();
+    picostation::g_driveMechanics.resetDrive();
 
     pio_sm_set_enabled(PIOInstance::I2S_DATA, SM::I2S_DATA, false);
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, false);
@@ -459,8 +459,8 @@ static bool handleFirmwareFlashRequest()
 
     gpio_put(Pin::LED, 0);
 
-    g_core1PauseRequest = false;
-    while (g_core1Paused.Load())
+    picostation::g_core1PauseRequest = false;
+    while (picostation::g_core1Paused.Load())
     {
         tight_loop_contents();
     }

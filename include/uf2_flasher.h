@@ -7,5 +7,6 @@ namespace picostation {
 // If path is null, the updater searches the card root for a candidate UF2 file.
 // Returns true on success, false on failure.
 bool flashFirmwareFromSD(const char *path = nullptr);
+bool uf2UpdateAvailable();
 }  // namespace picostation
 
