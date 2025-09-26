@@ -308,38 +308,12 @@ picostation::SubQ::Data __time_critical_func(picostation::DiscImage::generateSub
         subqdata.aframe = toBCD(msf_abs.ff);
     }
 
-    /*subqdata.crc = 0;
-    
-    if (subqdata.ctrladdr != 1)
+    uint16_t crc = 0;
+    for (size_t i = 0; i < 10; i++)
     {
-		return subqdata;
-	}*/
-	
-	subqdata.crc = 0xbeef;
-	
-    /*switch (g_audioCtrlMode)
-    {
-        case audioControlModes::NORMAL:
-        case audioControlModes::ALTNORMAL:
-        default:
-            for (size_t i = 0; i < 10; i++)
-            {
-                subqdata.crc = (subqdata.crc << 8) ^ crc16_lut[((subqdata.crc >> 8) ^ subqdata.raw[i]) & 0xFF];
-            }
-            subqdata.crc = (subqdata.crc << 8) | (subqdata.crc >> 8);  // swap endianness
-            // There's probably a better way to do this in the calculation, but I'm sleepy
-            break;
-
-        case audioControlModes::LEVELMETER:
-            // subqdata.crc = g_audioLevel;
-            subqdata.raw[11] = ((sector % 2) == 0) ? 0x00 : 0x80;
-            break;
-
-        case audioControlModes::PEAKMETER:
-            // subqdata.crc = g_audioPeak;
-            subqdata.crc = 0xbeef;
-            break;
-    }*/
+        crc = (crc << 8) ^ crc16_lut[((crc >> 8) ^ subqdata.raw[i]) & 0xFF];
+    }
+    subqdata.crc = (crc << 8) | (crc >> 8);  // swap endianness
 
     return subqdata;
 }
