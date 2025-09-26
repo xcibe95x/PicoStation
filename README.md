@@ -26,6 +26,8 @@ I've taken some pretty drastic design choices with my fork of this project, such
   `auto`, `pal`, `ntsc-u`, `ntsc-j`) and `scex_lock_region` (`true`/`false`). Setting
   `scex_region=pal` keeps PAL colour encoding active while running NTSC titles, while
   keeping `scex_lock_region=false` preserves compatibility with external hardware mods.
+  When the file is absent the firmware automatically falls back to the default SCEx order,
+  so the configuration is optional and will not prevent booting.
 
 
 ### To-do

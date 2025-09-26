@@ -51,6 +51,11 @@ void applyRegionPreference(const ConsoleRegion region) {
     }
 }
 
+void applyDefaultLicenseConfig() {
+    g_licenseConfig = LicenseConfig{};
+    applyRegionPreference(ConsoleRegion::AUTO);
+}
+
 bool parseBool(const char *value, bool &result) {
     if (value == nullptr) {
         return false;
@@ -257,6 +262,8 @@ void picostation::ModChip::sendLicenseString(const int sector, MechCommand &mech
 };
 
 void picostation::ModChip::loadConfiguration() {
+    applyDefaultLicenseConfig();
+
     FIL file;
     FRESULT result = f_open(&file, "PICOSTATION.CFG", FA_READ | FA_OPEN_EXISTING);
 
@@ -265,8 +272,6 @@ void picostation::ModChip::loadConfiguration() {
     }
 
     if (result != FR_OK) {
-        applyRegionPreference(ConsoleRegion::AUTO);
-        g_licenseConfig.activeCount = 3;
         return;
     }
 
