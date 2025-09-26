@@ -4086,14 +4086,14 @@ FRESULT __time_critical_func(f_read_scramble) (
 				if (disk_read((BYTE *) rbuff, sect, cc, sc, dt) != RES_OK) ABORT(fs, FR_DISK_ERR);
 #if !FF_FS_READONLY && FF_FS_MINIMIZE <= 2		/* Replace one of the read sectors with cached data if it contains a dirty sector */
 #if FF_FS_TINY
-				if (fs->wflag && fs->winsect - sect < cc) {
-					uint32_t dst_off = (fs->winsect - sect) * SS(fs);
-					scramble_data((uint32_t *)(rbuff + (dst_off << 1), fs->win, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
+                                if (fs->wflag && fs->winsect - sect < cc) {
+                                        uint32_t dst_off = (fs->winsect - sect) * SS(fs);
+                                        scramble_data((uint32_t *)(rbuff + (dst_off << 1)), fs->win, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
 				}
 #else
-				if ((fp->flag & FA_DIRTY) && fp->sect - sect < cc) {
-					uint32_t dst_off = (fs->sect - sect) * SS(fs);
-					scramble_data((uint32_t *)(rbuff + (dst_off << 1), fs->buf, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
+                                if ((fp->flag & FA_DIRTY) && fp->sect - sect < cc) {
+                                        uint32_t dst_off = (fs->sect - sect) * SS(fs);
+                                        scramble_data((uint32_t *)(rbuff + (dst_off << 1)), fs->buf, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
 				}
 #endif
 #endif
