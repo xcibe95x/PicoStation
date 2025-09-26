@@ -126,14 +126,15 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
         tight_loop_contents();
     }
 
-    modChip.init();
-
 #if DEBUG_I2S
     uint64_t startTime;
     uint64_t endTime;
 #endif
 
-	mountSDCard();
+    mountSDCard();
+
+    modChip.loadConfiguration();
+    modChip.init();
 
     g_discImage.makeDummyCue();
 	

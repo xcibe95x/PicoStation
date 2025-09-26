@@ -21,6 +21,11 @@ I've taken some pretty drastic design choices with my fork of this project, such
 
 ### Notes
 - Please make sure your SD card is formatted as exFAT.
+- Optional: create a `PICOSTATION.CFG` file on the SD card root to configure the SCEx license
+  sequence used by the software region-free mod. Supported keys are `scex_region` (values:
+  `auto`, `pal`, `ntsc-u`, `ntsc-j`) and `scex_lock_region` (`true`/`false`). Setting
+  `scex_region=pal` keeps PAL colour encoding active while running NTSC titles, while
+  keeping `scex_lock_region=false` preserves compatibility with external hardware mods.
 
 
 ### To-do

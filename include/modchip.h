@@ -10,6 +10,7 @@ class MechCommand;
 class ModChip {
   public:
     void init();
+    void loadConfiguration();
     void sendLicenseString(const int sector, MechCommand &mechCommand);
 
   private:
