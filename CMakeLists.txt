@@ -127,7 +127,7 @@ target_include_directories(
 add_subdirectory(third_party/SD-fatfs build)
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
-pico_enable_stdio_usb(${PROJECT_NAME} 0)
+pico_enable_stdio_usb(${PROJECT_NAME} 1)
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
@@ -170,7 +170,7 @@ if (BOOT_PATCHING AND EXISTS "${PATCH_SCRIPT}")
     )
 
     # Make a target that depends on the stamp
-    add_custom_target(${PROJECT_NAME}_post ALL DEPENDS "${PATCH_STAMP}")
+    add_custom_target(${PROJECT_NAME}_red ALL DEPENDS "${PATCH_STAMP}")
 
 else()
     message(WARNING "patch_boot.py not found at ${PATCH_SCRIPT}; skipping UF2 patch step.")
