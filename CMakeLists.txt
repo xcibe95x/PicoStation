@@ -108,6 +108,7 @@ target_sources(
     src/main.cpp
     src/modchip.cpp
     src/picostation.cpp
+    src/uf2_flasher.cpp
     src/subq.cpp
     src/directory_listing.cpp
     src/si5351.c
@@ -139,6 +140,8 @@ target_link_libraries(
     hardware_pwm
     hardware_vreg
     hardware_i2c
+    hardware_flash
+    hardware_watchdog
     SD-fatfs
     pico_bootrom
     pico_multicore

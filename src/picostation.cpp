@@ -7,7 +7,10 @@
 #include "disc_image.h"
 #include "directory_listing.h"
 #include "drive_mechanics.h"
+#include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/pwm.h"
+#include "hardware/watchdog.h"
 #include <hardware/i2c.h>
 #include "i2s.h"
 #include "logging.h"
@@ -15,6 +18,7 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pseudo_atomics.h"
+#include "uf2_flasher.h"
 #include "subq.h"
 #include "values.h"
 #include "si5351.h"
@@ -41,6 +45,8 @@ int picostation::g_targetPlaybackSpeed = 1;  // core0: r/w
 
 mutex_t picostation::g_mechaconMutex;
 pseudoatomic<bool> picostation::g_coreReady[2];
+pseudoatomic<bool> picostation::g_core1PauseRequest;
+pseudoatomic<bool> picostation::g_core1Paused;
 
 unsigned int picostation::g_audioCtrlMode = audioControlModes::NORMAL;
 
@@ -51,7 +57,13 @@ static unsigned int s_mechachonOffset;
 unsigned int picostation::g_soctOffset;
 unsigned int picostation::g_subqOffset;
 
+static constexpr uint64_t c_resetDebounceUs = 50000U;
+static constexpr uint64_t c_resetMenuHoldUs = 1000000U;
+static constexpr uint64_t c_resetFlashHoldUs = 4000000U;
+
 static uint8_t s_resetPending = 0;
+
+static bool handleFirmwareFlashRequest();
 
 static picostation::PWMSettings pwmDataClock = 
 {
@@ -107,16 +119,20 @@ static void __time_critical_func(interruptHandler)(unsigned int gpio, uint32_t e
                 const uint64_t c_now = time_us_64();
                 const uint64_t c_timeElapsed = c_now - lastLowEvent;
                 
-                if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
+                if (c_timeElapsed >= c_resetDebounceUs)  // Debounce, only reset if the pin was low long enough
                 {
-                    if (c_timeElapsed >= 1000000U) // pressed more one second
-					{
-						s_resetPending = 2;
-					}
-					else
-					{
-						s_resetPending = 1;
-					}
+                    if (c_timeElapsed >= c_resetFlashHoldUs)
+                    {
+                        s_resetPending = 3;
+                    }
+                    else if (c_timeElapsed >= c_resetMenuHoldUs)
+                    {
+                        s_resetPending = 2;
+                    }
+                    else
+                    {
+                        s_resetPending = 1;
+                    }
                 }
                 
 				// Enable the low signal edge detection again
@@ -141,7 +157,7 @@ static void __time_critical_func(interruptHandler)(unsigned int gpio, uint32_t e
 
                 const uint64_t c_now = time_us_64();
                 const uint64_t c_timeElapsed = c_now - lastLowEventDoor;
-                if (c_timeElapsed >= 50000U)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
+                if (c_timeElapsed >= c_resetDebounceUs)  // Debounce, only reset if the pin was low for more than 50000us(50 ms)
                 {
                     m_i2s.s_doorPending = true;
                 }
@@ -189,8 +205,20 @@ static void __time_critical_func(send_subq)(const int currentSector)
             {
                 tight_loop_contents();
             }
-			reset();
-		}
+
+            if (s_resetPending == 3)
+            {
+                if (!handleFirmwareFlashRequest())
+                {
+                    s_resetPending = 1;
+                    reset();
+                }
+            }
+            else
+            {
+                reset();
+            }
+        }
 
         const int currentSector = g_driveMechanics.getSector();
 
@@ -232,6 +260,7 @@ static void __time_critical_func(send_subq)(const int currentSector)
 
 [[noreturn]] void picostation::core1Entry()
 {
+    multicore_lockout_victim_init();
     m_i2s.start(m_mechCommand);
     while (1) asm("");
     __builtin_unreachable();
@@ -382,6 +411,67 @@ void __time_critical_func(picostation::updatePlaybackSpeed)()
     }
 }
 
+static bool handleFirmwareFlashRequest()
+{
+    DEBUG_PRINT("Firmware flash requested\n");
+    s_resetPending = 0;
+
+    gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, false);
+    gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_HIGH, false);
+    gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, false);
+    gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_LOW, false);
+    gpio_set_irq_enabled(Pin::XLAT, GPIO_IRQ_EDGE_FALL, false);
+
+    g_core1PauseRequest = true;
+    while (!g_core1Paused.Load())
+    {
+        tight_loop_contents();
+    }
+
+    if (m_i2s.dmaChannel >= 0)
+    {
+        dma_channel_abort(m_i2s.dmaChannel);
+    }
+    m_i2s.i2s_set_state(0);
+    g_driveMechanics.resetDrive();
+
+    pio_sm_set_enabled(PIOInstance::I2S_DATA, SM::I2S_DATA, false);
+    pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, false);
+    pio_sm_set_enabled(PIOInstance::SOCT, SM::SOCT, false);
+    pio_sm_set_enabled(PIOInstance::SUBQ, SM::SUBQ, false);
+
+    gpio_init(Pin::LED);
+    gpio_set_dir(Pin::LED, GPIO_OUT);
+    gpio_put(Pin::LED, 1);
+
+    const bool success = picostation::flashFirmwareFromSD(nullptr);
+
+    if (success)
+    {
+        gpio_put(Pin::LED, 0);
+        sleep_ms(100);
+        watchdog_reboot(0, 0, 0);
+        while (true)
+        {
+            tight_loop_contents();
+        }
+    }
+
+    gpio_put(Pin::LED, 0);
+
+    g_core1PauseRequest = false;
+    while (g_core1Paused.Load())
+    {
+        tight_loop_contents();
+    }
+
+    gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+    gpio_set_irq_enabled(Pin::DOOR, GPIO_IRQ_LEVEL_HIGH, true);
+    gpio_set_irq_enabled(Pin::XLAT, GPIO_IRQ_EDGE_FALL, true);
+
+    return false;
+}
+
 void __time_critical_func(picostation::reset)()
 {
     DEBUG_PRINT("RESET!\n");
@@ -438,7 +528,12 @@ void __time_critical_func(picostation::reset)()
 	
     pio_sm_set_enabled(PIOInstance::MECHACON, SM::MECHACON, true);
     
-	s_resetPending = 0;
-	gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+        s_resetPending = 0;
+        gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
+}
+
+void picostation::requestFirmwareFlash()
+{
+    s_resetPending = 3;
 }
 

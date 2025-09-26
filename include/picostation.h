@@ -25,6 +25,8 @@ enum class FileListingStates {
 
 extern pseudoatomic<FileListingStates> g_fileListingState;
 extern pseudoatomic<uint32_t> g_fileArg;
+extern pseudoatomic<bool> g_core1PauseRequest;
+extern pseudoatomic<bool> g_core1Paused;
 
 struct PWMSettings {
     const unsigned int gpio;
@@ -52,5 +54,6 @@ extern unsigned int g_audioCtrlMode;
 void initHW();
 void updatePlaybackSpeed();
 void reset();
+void requestFirmwareFlash();
 }  // namespace picostation
 

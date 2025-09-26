@@ -117,8 +117,9 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     s_doorPending = false;
     
     reinitI2S();
-	
+
     dmaChannel = initDMA(pioSamples[0], 1176);
+    picostation::g_core1Paused = false;
 
     g_coreReady[1] = true;          // Core 1 is ready
     while (!g_coreReady[0].Load())  // Wait for Core 0 to be ready
@@ -144,9 +145,30 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
     while (true)
     {
+        if (picostation::g_core1PauseRequest.Load())
+        {
+            if (!picostation::g_core1Paused.Load())
+            {
+                dma_channel_abort(dmaChannel);
+                reinitI2S();
+                g_driveMechanics.resetDrive();
+                menu_active = true;
+                s_doorPending = false;
+                picostation::g_core1Paused = true;
+            }
+
+            while (picostation::g_core1PauseRequest.Load())
+            {
+                tight_loop_contents();
+            }
+
+            picostation::g_core1Paused = false;
+            continue;
+        }
+
         // Sector could change during the loop, so we need to keep track of it
         currentSector = g_driveMechanics.getSector();
-        
+
         modChip.sendLicenseString(currentSector, mechCommand);
 		
 		if (menu_active && needFileCheckAction.Load() != picostation::FileListingStates::IDLE)

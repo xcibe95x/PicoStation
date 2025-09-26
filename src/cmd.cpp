@@ -30,6 +30,7 @@ static bool trk_dir = 0;
 static bool prev_dir = 0;
 static bool sled_break = 0;
 static uint16_t m_jumpTrack = 0;
+static constexpr uint16_t c_flashFromSdMagic = 0xFA57;
 
 void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 {
@@ -234,15 +235,25 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 					break;
 				}
 					
-				case COMMAND_BOOTLOADER:
-				{
-					if (command.custom_cmd.arg == 0xBEEF)
-					{
-						// Restart into bootloader
-						rom_reset_usb_boot_extra(Pin::LED, 0, false);
-					}
-					break;
-				}
+                                case COMMAND_BOOTLOADER:
+                                {
+                                        if (command.custom_cmd.arg == 0xBEEF)
+                                        {
+                                                // Restart into bootloader
+                                                rom_reset_usb_boot_extra(Pin::LED, 0, false);
+                                        }
+                                        break;
+                                }
+
+                                case COMMAND_FLASH_UF2:
+                                {
+                                        DEBUG_PRINT("COMMAND_FLASH_UF2 %x\n", command.custom_cmd.arg);
+                                        if (command.custom_cmd.arg == c_flashFromSdMagic)
+                                        {
+                                                picostation::requestFirmwareFlash();
+                                        }
+                                        break;
+                                }
 				
 				default:
 					break;

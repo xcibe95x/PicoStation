@@ -79,10 +79,11 @@ class MechCommand {
 		COMMAND_GOTO_DIRECTORY = 0x3,
 		COMMAND_GET_NEXT_CONTENTS = 0x4,
 		COMMAND_MOUNT_FILE = 0x5,
-		COMMAND_IO_COMMAND = 0x6,
-		COMMAND_IO_DATA = 0x7,
-		COMMAND_BOOTLOADER = 0xA
-	};
+                COMMAND_IO_COMMAND = 0x6,
+                COMMAND_IO_DATA = 0x7,
+                COMMAND_BOOTLOADER = 0xA,
+                COMMAND_FLASH_UF2 = 0xB
+        };
 
 	typedef union mech_cmd_t
 	{

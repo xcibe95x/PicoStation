@@ -22,6 +22,13 @@ I've taken some pretty drastic design choices with my fork of this project, such
 ### Notes
 - Please make sure your SD card is formatted as exFAT.
 
+### Updating firmware from the SD card
+1. Copy the new firmware image (`.uf2`) to the root of the Picostation SD card. If you have more than one UF2 on the card, the device will prefer a file named `picostation.uf2`; otherwise it will fall back to the most recently modified UF2.
+2. Insert the card and power up the console.
+3. Hold the Picostation reset button for about four seconds and then release it. A short press still performs a normal reset, and a one-second hold opens the file browser.
+4. The status LED will light up solid while the UF2 is being programmed. Keep the console powered during this step. Once flashing succeeds the board reboots automatically into the new firmware.
+5. If no suitable UF2 is found, the unit will return to normal operation after the next reset.
+
 
 ### To-do
 - ~~Stabilize image loading~~
