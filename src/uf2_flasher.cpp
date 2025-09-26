@@ -1,5 +1,6 @@
 #include "uf2_flasher.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdio>
@@ -115,16 +116,14 @@ bool selectUf2Candidate(char *outPath, size_t outSize) {
         return false;
     }
 
-    if (bestName[0] == '/' || bestName[0] == '\\') {
-        strncpy(outPath, bestName, outSize - 1);
-    } else {
-        const int written = snprintf(outPath, outSize, "/%s", bestName);
-        if (written <= 0 || static_cast<size_t>(written) >= outSize) {
-            return false;
-        }
-    }
+    // FatFs in this tree exposes short 8.3 names via fname and does not
+    // populate long filename fields, so copy the alias verbatim and make
+    // sure the caller receives a terminated string.
 
-    return true;
+    strncpy(outPath, bestName, outSize - 1);
+    outPath[outSize - 1] = '\0';
+
+    return outPath[0] != '\0';
 }
 
 bool __not_in_flash_func(programUf2Block)(const UF2Block &block, std::array<bool, kFlashSectorCount> &erased) {
@@ -148,12 +147,13 @@ bool __not_in_flash_func(programUf2Block)(const UF2Block &block, std::array<bool
             flash_range_erase(sectorIndex * FLASH_SECTOR_SIZE, FLASH_SECTOR_SIZE);
             erased[sectorIndex] = true;
         }
-        flash_range_program(flashOffset, dataPtr, FLASH_PAGE_SIZE);
+        const uint32_t chunkSize = std::min<uint32_t>(FLASH_PAGE_SIZE, remaining);
+        flash_range_program(flashOffset, dataPtr, chunkSize);
         restore_interrupts(interruptState);
 
-        currentAddr += FLASH_PAGE_SIZE;
-        dataPtr += FLASH_PAGE_SIZE;
-        remaining -= FLASH_PAGE_SIZE;
+        currentAddr += chunkSize;
+        dataPtr += chunkSize;
+        remaining -= chunkSize;
     }
 
     return true;
@@ -191,6 +191,7 @@ bool flashFirmwareFromSD(const char *path) {
     UINT bytesRead = 0;
     uint32_t expectedBlocks = 0;
     uint32_t processedBlocks = 0;
+    uint32_t totalBlocks = 0;
     bool ok = true;
 
     while (true) {
@@ -210,6 +211,8 @@ bool flashFirmwareFromSD(const char *path) {
             ok = false;
             break;
         }
+
+        ++totalBlocks;
 
         if (block.magicStart0 != kUf2MagicStart0 || block.magicStart1 != kUf2MagicStart1 || block.magicEnd != kUf2MagicEnd) {
             printf("Invalid UF2 magic\n");
@@ -271,10 +274,10 @@ bool flashFirmwareFromSD(const char *path) {
         return false;
     }
 
-    if (expectedBlocks != 0 && processedBlocks != expectedBlocks) {
-        printf("UF2 block count mismatch (expected %lu, wrote %lu)\n",
+    if (expectedBlocks != 0 && totalBlocks != expectedBlocks) {
+        printf("UF2 block count mismatch (expected %lu, read %lu)\n",
                static_cast<unsigned long>(expectedBlocks),
-               static_cast<unsigned long>(processedBlocks));
+               static_cast<unsigned long>(totalBlocks));
         return false;
     }
 
