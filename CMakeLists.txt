@@ -1,3 +1,6 @@
+# == To use only if the uf2 is not booting into picostation ==
+option(BOOT_PATCHING "Patch Boot if produced uf2 is not booting up correctly" ON)
+
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/")
 
@@ -6,6 +9,7 @@ if(WIN32)
 else()
     set(USERHOME $ENV{HOME})
 endif()
+
 set(sdkVersion 2.1.1)
 set(toolchainVersion 14_2_Rel1)
 set(picotoolVersion 2.1.1)
@@ -14,7 +18,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD pico CACHE STRING "Board type")
 
 # Example override variant
 # set(PICOSTATION_VARIANT "picostation_plus_pico2")
@@ -121,7 +125,6 @@ target_include_directories(
 )
 
 add_subdirectory(third_party/SD-fatfs build)
-
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
@@ -151,11 +154,11 @@ pico_add_extra_outputs(${PROJECT_NAME})
 # --- Post-build UF2 byte patch (robust) ---
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-set(UF2_FILE "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.uf2")
+set(UF2_FILE "${CMAKE_BINARY_DIR}/${PICOSTATION_VARIANT}.uf2")
 set(PATCH_SCRIPT "${CMAKE_SOURCE_DIR}/tools/patch_boot.py")
-set(PATCH_STAMP  "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.uf2.patched.stamp")
+set(PATCH_STAMP  "${CMAKE_BINARY_DIR}/${PICOSTATION_VARIANT}.uf2.patched.stamp")
 
-if (EXISTS "${PATCH_SCRIPT}")
+if (BOOT_PATCHING AND EXISTS "${PATCH_SCRIPT}")
     # Generate a stamp only after UF2 is created and patch script runs
     add_custom_command(
         OUTPUT  "${PATCH_STAMP}"
