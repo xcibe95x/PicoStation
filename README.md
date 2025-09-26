@@ -27,7 +27,8 @@ I've taken some pretty drastic design choices with my fork of this project, such
 2. Insert the card and power up the console.
 3. Hold the Picostation reset button for about four seconds and then release it. A short press still performs a normal reset, and a one-second hold opens the file browser.
 4. The status LED will light up solid while the UF2 is being programmed. Keep the console powered during this step. Once flashing succeeds the board reboots automatically into the new firmware.
-5. If no suitable UF2 is found, the unit will return to normal operation after the next reset.
+5. After a successful flash the UF2 is removed from the SD card so the same image is not applied again. Copy it back to the card if you want to retry the update.
+6. If no suitable UF2 is found, the unit will return to normal operation after the next reset.
 
 
 ### To-do
