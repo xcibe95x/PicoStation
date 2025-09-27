@@ -1,7 +1,8 @@
 # Picostation
 
-Original Fork from [https://github.com/paulocode/picostation](https://github.com/paulocode/picostation)
-Forked from [https://github.com/megavolt85/picostation](https://github.com/megavolt85/PicoStation)
+Original Fork from [paulocode](https://github.com/paulocode/picostation)
+Forked from [megavolt85](https://github.com/megavolt85/PicoStation)
+Special thanks to [ManiacVera](https://github.com/ManiacVera) for the support and trying to help me understand why the uf2 wasn't working at all for me, i also merged his fix for games with broken boot into this firmware.
 
 I'm taking some experimental changes and fixes by manually reviewing the code and with the help of AI or automated tools since i don't have much knowledge on the Playstation system, testing every build with incompatible, different region and precedently reported not booting games.
 I'll try to keep the master branch clean and only release quality checked firmware, after managing to implement and fix a few key points i'll focus on taking changes on the UI design, once done i'll just upstream changes or accept pull request with fixes.
