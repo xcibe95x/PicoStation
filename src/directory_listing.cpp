@@ -174,6 +174,10 @@ uint16_t* DirectoryListing::getFileListingData() {
     return fileListing->getData();
 }
 
+const char* DirectoryListing::getCurrentDirectory() {
+    return currentDirectory;
+}
+
 // Private
 
 void DirectoryListing::combinePaths(const char* filePath1, const char* filePath2, char* newPath) { 

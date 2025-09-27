@@ -16,9 +16,11 @@
 #include "ff.h"
 #include "global.h"
 #include "hardware/pio.h"
+#include "image_selector.h"
 #include "logging.h"
 #include "main.pio.h"
 #include "modchip.h"
+#include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
@@ -136,11 +138,46 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 	mountSDCard();
 
     g_discImage.makeDummyCue();
-	
+
     // this need to be moved to diskimage
     picostation::DirectoryListing::init();
     picostation::DirectoryListing::gotoRoot();
     picostation::DirectoryListing::getDirectoryEntries(0);
+
+    stdio_usb_init();
+    bool usbSelectorReady = stdio_usb_connected();
+    if (!usbSelectorReady)
+    {
+        absolute_time_t deadline = make_timeout_time_ms(100);
+        while (!usbSelectorReady && !time_reached(deadline))
+        {
+            sleep_ms(1);
+            usbSelectorReady = stdio_usb_connected();
+        }
+    }
+
+    if (usbSelectorReady)
+    {
+        if (auto selection = picostation::promptForImageSelection())
+        {
+            s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
+            const FRESULT loadResult = g_discImage.load(selection->path.data());
+            if (loadResult == FR_OK)
+            {
+                loadedImageIndex = selection->index;
+                img_count = DirectoryListing::getDirectoryEntriesCount();
+                menu_active = false;
+                reinitI2S();
+                g_driveMechanics.resetDrive();
+            }
+            else
+            {
+                printf("Failed to load '%s' (FRESULT=%d). Staying in menu mode.\n", selection->path.data(), loadResult);
+                menu_active = true;
+                s_dataLocation = picostation::DiscImage::DataLocation::RAM;
+            }
+        }
+    }
 
     while (true)
     {
