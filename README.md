@@ -1,8 +1,12 @@
 # Picostation
 
-Forked from https://github.com/paulocode/picostation
+Original Fork from [paulocode](https://github.com/paulocode/picostation)
+Forked from [megavolt85](https://github.com/megavolt85/PicoStation)
+Special thanks to [ManiacVera](https://github.com/ManiacVera) for the support and trying to help me understand why the uf2 wasn't working at all for me, i also merged his fix for games with broken boot into this firmware.
 
-I've taken some pretty drastic design choices with my fork of this project, such as restructuring most of the code and converting it to C++. Keeping the repo as a fork no longer made sense to me; the original repo is archived and inactive, so there would be no point in further syncing changes between the repos. I also found some of the limitations of a forked repo on github a bit annoying.
+I'm taking some experimental changes and fixes by manually reviewing the code and with the help of AI or automated tools since i don't have much knowledge on the Playstation system, testing every build with incompatible, different region and precedently reported not booting games.
+I'll try to keep the master branch clean and only release quality checked firmware, after managing to implement and fix a few key points i'll focus on taking changes on the UI design, once done i'll just upstream changes or accept pull request with fixes.
+Since i have noticed other repos doesn't have clear instructions and don't track issues, feel free to open issues and pull request here, i'll update the read me with simpler instructions to build and flash a working picoStation aswell as build firmware from this repo (which is being already pretty much automatized, i'll add a setup.sh to auto install deps)
 
 ## __In developement__ _Raspberry Pi Pico based ODE_ for the original Playstation
 <a href="https://twitter.com/paulo7x8/status/1602007862733312000"><img src="https://i.ibb.co/9hT2GQc/pico-tweet.jpg" alt="original tweet" height="400"/></a>
