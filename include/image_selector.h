@@ -2,6 +2,7 @@
 
 #include <array>
 #include <optional>
+#include <cstdint>
 
 #include "global.h"
 
