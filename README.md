@@ -8,31 +8,38 @@ I'm taking some experimental changes and fixes by manually reviewing the code an
 I'll try to keep the master branch clean and only release quality checked firmware, after managing to implement and fix a few key points i'll focus on taking changes on the UI design, once done i'll just upstream changes or accept pull request with fixes.
 Since i have noticed other repos doesn't have clear instructions and don't track issues, feel free to open issues and pull request here, i'll update the read me with simpler instructions to build and flash a working picoStation aswell as build firmware from this repo (which is being already pretty much automatized, i'll add a setup.sh to auto install deps)
 
-## __In developement__ _Raspberry Pi Pico based ODE_ for the original Playstation
+## **In developement** _Raspberry Pi Pico based ODE_ for the original Playstation
+
 <a href="https://twitter.com/paulo7x8/status/1602007862733312000"><img src="https://i.ibb.co/9hT2GQc/pico-tweet.jpg" alt="original tweet" height="400"/></a>
 
 ### Supported models:
-- PU-8  (SCPH100X)
+
+- PU-8 (SCPH100X)
 - PU-18 (SCPH55XX)
 
 ### Compatibility
+
 <b>NOTE: rename your cue-sheet to UNIROM.cue</b><br>
+
 - Game compatibility and reliability is greatly improved from the original Picostation repo, but there will still be games that don't work at all, and some that may freeze randomly or run poorly.
 - ~~Some games may load (see <a href="https://github.com/paulocode/picostation/wiki/Game-Compatibility-List">Game Compatibility List</a> wiki page)~~
 
 ### How-to
+
 - see <a href="https://github.com/paulocode/picostation/wiki/How-to">How-to</a> wiki page
 
 ### Notes
+
 - Please make sure your SD card is formatted as exFAT.
 
-
 ### To-do
-- ~~Stabilize image loading~~
-- Make an interface for image choice/loading
-- ~~Make it possible to update the pico via SD card~~ <- Maybe this eventually, but not really a priority for me at the moment.
+
+- New picostation-menu.bin
+- PAL->NTSC and NTSC->PAL soft patching (play imports in colour)
+- Firmware update via microsd for consoles with inaccessible BOOTSEL
 
 ### Links
+
 - Original repo this fork is based on: https://github.com/paulocode/picostation
 - The cue parser used in this project was written by Nicolas "Pixel" Noble, and is part of the PCSX-Redux repo: https://github.com/grumpycoders/pcsx-redux/tree/main/third_party/cueparser
 - The SD card driver is by carlk3 and can be found here: https://github.com/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico
