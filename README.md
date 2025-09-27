@@ -21,12 +21,15 @@ I've taken some pretty drastic design choices with my fork of this project, such
 
 ### Notes
 - Please make sure your SD card is formatted as exFAT.
+- Firmware updates can be installed by copying a new `PICOSTATION.UF2` file to the root of the SD card. The Pico will stage and
+  apply the update automatically on the next boot before launching the menu. Make sure the UF2 file is 1MB or smaller so it fits
+  in the reserved update space.
 
 
 ### To-do
 - ~~Stabilize image loading~~
 - Make an interface for image choice/loading
-- ~~Make it possible to update the pico via SD card~~ <- Maybe this eventually, but not really a priority for me at the moment.
+- ~~Make it possible to update the pico via SD card~~ (drop `PICOSTATION.UF2` in the SD root and power on to auto-update).
 
 ### Links
 - Original repo this fork is based on: https://github.com/paulocode/picostation
