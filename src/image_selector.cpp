@@ -21,17 +21,6 @@ struct ListingEntry {
     std::string name;
 };
 
-bool waitForUsbConnection(uint32_t timeoutMs) {
-    absolute_time_t deadline = make_timeout_time_ms(timeoutMs);
-    while (!time_reached(deadline)) {
-        if (stdio_usb_connected()) {
-            return true;
-        }
-        sleep_ms(25);
-    }
-    return stdio_usb_connected();
-}
-
 bool readLine(char* buffer, size_t size) {
     if (size == 0) {
         return false;
@@ -220,9 +209,7 @@ bool parseIndex(const std::vector<std::string>& tokens, uint16_t& value) {
 }  // namespace
 
 std::optional<ImageSelection> promptForImageSelection() {
-    stdio_usb_init();
-
-    if (!waitForUsbConnection(500)) {
+    if (!stdio_usb_connected()) {
         return std::nullopt;
     }
 
