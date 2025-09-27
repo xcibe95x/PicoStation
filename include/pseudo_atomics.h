@@ -22,20 +22,23 @@ class pseudoatomic {
     explicit pseudoatomic(T initial) : t_(initial) {}
 
     auto operator=(T t) -> pseudoatomic<T>& {
-        t_.store(t, std::memory_order_release);
+        std::atomic_thread_fence(std::memory_order_release);
+        t_ = t;
         return *this;
     }
 
-    [[nodiscard]] auto Load() const -> T {
-        return t_.load(std::memory_order_acquire);
+    auto Load() -> T {
+        auto t = t_;
+        std::atomic_thread_fence(std::memory_order_acquire);
+        return t;
     }
 
     pseudoatomic(const pseudoatomic<T>&) = delete;
     pseudoatomic(pseudoatomic<T>&&) = delete;
-    auto operator=(const pseudoatomic<T>&) -> pseudoatomic<T>& = delete;
-    auto operator=(pseudoatomic<T>&&) -> pseudoatomic<T>& = delete;
+    pseudoatomic<T>& operator=(const pseudoatomic<T>&) = delete;
+    pseudoatomic<T>& operator=(pseudoatomic<T>&&) = delete;
 
   private:
-    std::atomic<T> t_{T{}};
+    volatile T t_{};
 };
 #endif
