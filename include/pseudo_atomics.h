@@ -18,19 +18,20 @@ inline void initPseudoAtomics() {}
 template <typename T>
 class pseudoatomic {
   public:
+    pseudoatomic() = default;
+    explicit pseudoatomic(T initial) : t_(initial) {}
+
     auto operator=(T t) -> pseudoatomic<T>& {
-        // To-do: Need a barrier
+        std::atomic_thread_fence(std::memory_order_release);
         t_ = t;
         return *this;
     }
 
     auto Load() -> T {
-        // To-do: Need a barrier
         auto t = t_;
+        std::atomic_thread_fence(std::memory_order_acquire);
         return t;
     }
-
-    pseudoatomic() = default;
 
     pseudoatomic(const pseudoatomic<T>&) = delete;
     pseudoatomic(pseudoatomic<T>&&) = delete;
@@ -38,6 +39,6 @@ class pseudoatomic {
     pseudoatomic<T>& operator=(pseudoatomic<T>&&) = delete;
 
   private:
-    volatile T t_;
+    volatile T t_{};
 };
 #endif
