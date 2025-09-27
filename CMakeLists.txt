@@ -136,9 +136,12 @@ pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 target_link_libraries(
     ${PROJECT_NAME} PRIVATE
     hardware_dma
+    hardware_flash
     hardware_pio
     hardware_pwm
+    hardware_sync
     hardware_vreg
+    hardware_watchdog
     hardware_i2c
     SD-fatfs
     pico_bootrom
