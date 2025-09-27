@@ -15,6 +15,7 @@ class DirectoryListing {
     static bool getDirectoryEntries(const uint32_t offset);
     static uint16_t getDirectoryEntriesCount();
     static uint16_t* getFileListingData();
+    static const char* getCurrentDirectory();
   private:
     static void combinePaths(const char* filePath1, const char* filePath2, char* newPath);
     static bool getDirectoryEntry(const uint32_t index, char* filePath);

@@ -16,6 +16,7 @@
 #include "ff.h"
 #include "global.h"
 #include "hardware/pio.h"
+#include "image_selector.h"
 #include "logging.h"
 #include "main.pio.h"
 #include "modchip.h"
@@ -141,6 +142,26 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     picostation::DirectoryListing::init();
     picostation::DirectoryListing::gotoRoot();
     picostation::DirectoryListing::getDirectoryEntries(0);
+
+    if (auto selection = picostation::promptForImageSelection())
+    {
+        s_dataLocation = picostation::DiscImage::DataLocation::SDCard;
+        const FRESULT loadResult = g_discImage.load(selection->path.data());
+        if (loadResult == FR_OK)
+        {
+            loadedImageIndex = selection->index;
+            img_count = DirectoryListing::getDirectoryEntriesCount();
+            menu_active = false;
+            reinitI2S();
+            g_driveMechanics.resetDrive();
+        }
+        else
+        {
+            printf("Failed to load '%s' (FRESULT=%d). Staying in menu mode.\n", selection->path.data(), loadResult);
+            menu_active = true;
+            s_dataLocation = picostation::DiscImage::DataLocation::RAM;
+        }
+    }
 
     while (true)
     {

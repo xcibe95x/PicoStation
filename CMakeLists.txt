@@ -105,6 +105,7 @@ target_sources(
     src/disc_image.cpp
     src/drive_mechanics.cpp
     src/i2s.cpp
+    src/image_selector.cpp
     src/main.cpp
     src/modchip.cpp
     src/picostation.cpp
