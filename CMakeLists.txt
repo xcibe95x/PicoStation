@@ -104,6 +104,7 @@ target_sources(
     src/cmd.cpp
     src/disc_image.cpp
     src/drive_mechanics.cpp
+    src/firmware_update.cpp
     src/i2s.cpp
     src/main.cpp
     src/modchip.cpp

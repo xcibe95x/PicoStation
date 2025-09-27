@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include "picostation.h"
 #include "pseudo_atomics.h"
+#include "firmware_update.h"
 #include <cstdio>
 #include <csignal>
 
@@ -18,6 +19,7 @@ int main() {
     initPseudoAtomics();
 
     picostation::initHW();
+    picostation::checkForFirmwareUpdate();
     multicore_launch_core1(picostation::core1Entry);  // I2S Thread
 
     picostation::core0Entry();  // Reset, playback speed, Sled, soct, subq
