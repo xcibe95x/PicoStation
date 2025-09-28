@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <array>
 #include "ff.h"
 #include "logging.h"
 #include "picostation.h"
@@ -71,6 +72,60 @@ static constexpr uint16_t crc16_lut[256] =
 };
 
 static uint8_t s_userData[c_cdSamplesBytes] = {0};
+
+namespace {
+constexpr size_t kCdSectorSize = c_cdSamplesBytes;
+constexpr size_t kCdUserDataOffset = 24;
+constexpr size_t kCdUserDataSize = 2048;
+
+std::array<uint8_t, kCdSectorSize> s_loaderPatchedSector{};
+
+const uint8_t *getPatchedLoaderSector(int adjustedSector, picostation::DiscImage::UniromPatchMode mode) {
+    const size_t sectorIndex = adjustedSector < 0 ? 0 : static_cast<size_t>(adjustedSector);
+    const size_t offset = sectorIndex * kCdSectorSize;
+    const size_t maxOffset = loaderImageSize >= kCdSectorSize ? loaderImageSize - kCdSectorSize : 0;
+
+    if (offset > maxOffset) {
+        return &loaderImage[maxOffset];
+    }
+
+    if (mode == picostation::DiscImage::UniromPatchMode::Default || adjustedSector < 0) {
+        return &loaderImage[offset];
+    }
+
+    memcpy(s_loaderPatchedSector.data(), &loaderImage[offset], kCdSectorSize);
+
+    uint8_t *userData = s_loaderPatchedSector.data() + kCdUserDataOffset;
+    for (size_t i = 0; i < kCdUserDataSize; i += 4) {
+        uint32_t word = static_cast<uint32_t>(userData[i]) |
+                        (static_cast<uint32_t>(userData[i + 1]) << 8) |
+                        (static_cast<uint32_t>(userData[i + 2]) << 16) |
+                        (static_cast<uint32_t>(userData[i + 3]) << 24);
+
+        if ((word & 0xFF000000u) != 0x08000000u) {
+            continue;
+        }
+
+        if (mode == picostation::DiscImage::UniromPatchMode::NtscToPal) {
+            word |= 0x1u;
+        } else if (mode == picostation::DiscImage::UniromPatchMode::PalToNtsc) {
+            word &= ~0x1u;
+        }
+
+        userData[i] = static_cast<uint8_t>(word & 0xFFu);
+        userData[i + 1] = static_cast<uint8_t>((word >> 8) & 0xFFu);
+        userData[i + 2] = static_cast<uint8_t>((word >> 16) & 0xFFu);
+        userData[i + 3] = static_cast<uint8_t>((word >> 24) & 0xFFu);
+    }
+
+    return s_loaderPatchedSector.data();
+}
+}  // namespace
+
+const uint8_t *picostation::DiscImage::getLoaderSectorData(int adjustedSector)
+{
+    return getPatchedLoaderSector(adjustedSector, m_uniromPatchMode);
+}
 
 static MSF __time_critical_func(sectorToMSF)(const int sector)
 {
@@ -484,16 +539,18 @@ void __time_critical_func(picostation::DiscImage::readSector)(void *buffer, cons
 void __time_critical_func(picostation::DiscImage::readSectorRAM)(void *buffer, const int sector, const uint16_t *scramling)
 {
     const int adjustedSector = sector - c_preGap;
-    size_t targetOffset = adjustedSector * c_cdSamplesBytes;
-    
-    if (targetOffset >= 0 && targetOffset <= loaderImageSize - c_cdSamplesBytes)
+    if (adjustedSector >= 0)
     {
-		scramble_data((uint32_t *) buffer, (uint16_t *) &loaderImage[targetOffset], scramling, 1176);
-    } 
-    else
-    {
-        buildSector(sector, static_cast<uint32_t *>(buffer), (uint16_t *) s_userData, scramling);
+        const size_t targetOffset = static_cast<size_t>(adjustedSector) * c_cdSamplesBytes;
+        if (targetOffset <= loaderImageSize - c_cdSamplesBytes)
+        {
+            const uint8_t *sectorData = getLoaderSectorData(adjustedSector);
+            scramble_data((uint32_t *) buffer, (uint16_t *) sectorData, scramling, 1176);
+            return;
+        }
     }
+
+    buildSector(sector, static_cast<uint32_t *>(buffer), (uint16_t *) s_userData, scramling);
 }
 
 void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, const int sector, const uint16_t *scramling)
@@ -503,11 +560,12 @@ void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, co
     size_t i;
 
     const int adjustedSector = sector - c_preGap;
-    if (adjustedSector < 16 && m_cueDisc.tracks[1].trackType == CueTrackType::TRACK_TYPE_DATA)
-	{
-		scramble_data((uint32_t *) buffer, (uint16_t *) &loaderImage[adjustedSector * 2352], scramling, 1176);
-		return;
-	}
+    if (adjustedSector >= 0 && adjustedSector < 16 && m_cueDisc.tracks[1].trackType == CueTrackType::TRACK_TYPE_DATA)
+    {
+        const uint8_t *sectorData = getLoaderSectorData(adjustedSector);
+        scramble_data((uint32_t *) buffer, (uint16_t *) sectorData, scramling, 1176);
+        return;
+    }
     
     for (i = 1; i <= m_cueDisc.trackCount; i++)
     {
@@ -552,5 +610,15 @@ void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, co
         //buildSector(sector, static_cast<uint8_t *>(buffer), s_userData);
         //br = c_cdSamplesBytes;
     }
+}
+
+void picostation::DiscImage::setUniromPatchMode(UniromPatchMode mode)
+{
+    m_uniromPatchMode = mode;
+}
+
+picostation::DiscImage::UniromPatchMode picostation::DiscImage::getUniromPatchMode() const
+{
+    return m_uniromPatchMode;
 }
 

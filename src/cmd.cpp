@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "disc_image.h"
 #include "i2s.h"
 #include "drive_mechanics.h"
 #include "hardware/pio.h"
@@ -222,11 +223,64 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 					break;
 				}
 					
-				case COMMAND_IO_COMMAND:
-				{
-					DEBUG_PRINT("COMMAND_IO_COMMAND %x\n", command.custom_cmd.arg);
-					break;
-				}
+                                case COMMAND_IO_COMMAND:
+                                {
+                                        const uint16_t rawArg = command.custom_cmd.arg;
+                                        const uint8_t ioCommand = static_cast<uint8_t>(rawArg >> 8);
+                                        const uint8_t ioValue = static_cast<uint8_t>(rawArg & 0xFF);
+
+                                        enum class IoCommand : uint8_t
+                                        {
+                                                None = 0,
+                                                SetUniromPatchMode = 1,
+                                        };
+
+                                        enum class IoUniromPatchValue : uint8_t
+                                        {
+                                                Default = 0,
+                                                NtscToPal = 1,
+                                                PalToNtsc = 2,
+                                        };
+
+                                        switch (static_cast<IoCommand>(ioCommand))
+                                        {
+                                                case IoCommand::SetUniromPatchMode:
+                                                {
+                                                        picostation::DiscImage::UniromPatchMode mode = picostation::DiscImage::UniromPatchMode::Default;
+                                                        bool validValue = true;
+                                                        switch (static_cast<IoUniromPatchValue>(ioValue))
+                                                        {
+                                                                case IoUniromPatchValue::Default:
+                                                                        mode = picostation::DiscImage::UniromPatchMode::Default;
+                                                                        break;
+                                                                case IoUniromPatchValue::NtscToPal:
+                                                                        mode = picostation::DiscImage::UniromPatchMode::NtscToPal;
+                                                                        break;
+                                                                case IoUniromPatchValue::PalToNtsc:
+                                                                        mode = picostation::DiscImage::UniromPatchMode::PalToNtsc;
+                                                                        break;
+                                                                default:
+                                                                        DEBUG_PRINT("Unknown UNIROM patch value: %u\n", ioValue);
+                                                                        validValue = false;
+                                                                        break;
+                                                        }
+
+                                                        if (validValue)
+                                                        {
+                                                                picostation::g_discImage.setUniromPatchMode(mode);
+                                                                DEBUG_PRINT("Set UNIROM patch mode: %u\n", ioValue);
+                                                        }
+                                                        break;
+                                                }
+
+                                                default:
+                                                {
+                                                        DEBUG_PRINT("Unknown IO command: 0x%04x\n", rawArg);
+                                                        break;
+                                                }
+                                        }
+                                        break;
+                                }
 					
 				case COMMAND_IO_DATA:
 				{
