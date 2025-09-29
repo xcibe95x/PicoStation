@@ -106,6 +106,7 @@ target_sources(
     src/drive_mechanics.cpp
     src/i2s.cpp
     src/main.cpp
+    src/firmware_update.cpp
     src/modchip.cpp
     src/picostation.cpp
     src/subq.cpp
@@ -115,6 +116,18 @@ target_sources(
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
     third_party/posix_file.c
+    third_party/SD-fatfs/fatfs/source/ff.c
+    third_party/SD-fatfs/fatfs/source/ffsystem.c
+    third_party/SD-fatfs/fatfs/source/ffunicode.c
+    third_party/SD-fatfs/SD/sd_spi.c
+)
+
+
+set_source_files_properties(
+    third_party/SD-fatfs/fatfs/source/ff.c
+    third_party/SD-fatfs/fatfs/source/ffsystem.c
+    third_party/SD-fatfs/fatfs/source/ffunicode.c
+    PROPERTIES COMPILE_OPTIONS "-mthumb;-mcpu=cortex-m0plus"
 )
 
 target_include_directories(
@@ -122,9 +135,26 @@ target_include_directories(
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/SD-fatfs/fatfs/source
+    ${PICO_SDK_PATH}/src/rp2_common/hardware_spi/include
 )
 
-add_subdirectory(third_party/SD-fatfs build)
+# Include the pico-sdk boot UF2 headers so code can #include <boot/uf2.h>
+target_include_directories(
+    ${PROJECT_NAME} PRIVATE
+    ${PICO_SDK_PATH}/src/common/boot_uf2_headers/include
+)
+
+# Add pico-sdk include roots so SDK hardware headers (hardware/flash.h etc.) are available
+target_include_directories(
+    ${PROJECT_NAME} PRIVATE
+    ${PICO_SDK_PATH}/src/rp2_common/hardware_flash/include
+    ${PICO_SDK_PATH}/src/rp2_common/hardware_watchdog/include
+    ${PICO_SDK_PATH}/src/rp2040/hardware_structs/include
+    ${PICO_SDK_PATH}/src/rp2040/hardware_regs/include
+    ${PICO_SDK_PATH}/src/rp2_common/pico_runtime/include
+)
+
 add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
@@ -134,19 +164,16 @@ pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
 
 target_link_libraries(
     ${PROJECT_NAME} PRIVATE
+    hardware_flash
     hardware_dma
     hardware_pio
     hardware_pwm
     hardware_vreg
     hardware_i2c
-    SD-fatfs
+    hardware_spi
     pico_bootrom
     pico_multicore
     pico_stdlib
-)
-
-target_include_directories(SD-fatfs BEFORE INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/source
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})

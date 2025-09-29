@@ -25,6 +25,8 @@
 #include "subq.h"
 #include "values.h"
 #include "listingBuilder.h"
+#include "firmware_update.h"
+#include "pico/multicore.h"
 
 #if DEBUG_I2S
 #define DEBUG_PRINT printf
@@ -79,6 +81,7 @@ void picostation::I2S::mountSDCard()
     {
         panic("f_mount error: (%d)\n", fr);
     }
+	 picostation::FirmwareUpdate::checkAndApplyFromSD(true);
 }
 
 int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int transfer_count)
@@ -97,6 +100,8 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
 
 [[noreturn]] void __time_critical_func(picostation::I2S::start)(MechCommand &mechCommand)
 {
+    multicore_lockout_victim_init();
+
     picostation::ModChip modChip;
     static uint32_t pioSamples[CACHED_SECS][1176];
     static uint16_t *cdScramblingLUT = generateScramblingLUT();
@@ -138,9 +143,9 @@ int picostation::I2S::initDMA(const volatile void *read_addr, unsigned int trans
     g_discImage.makeDummyCue();
 	
     // this need to be moved to diskimage
-    picostation::DirectoryListing::init();
-    picostation::DirectoryListing::gotoRoot();
-    picostation::DirectoryListing::getDirectoryEntries(0);
+    // picostation::DirectoryListing::init();
+    // picostation::DirectoryListing::gotoRoot();
+    // picostation::DirectoryListing::getDirectoryEntries(0);
 
     while (true)
     {

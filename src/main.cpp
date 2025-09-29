@@ -18,6 +18,8 @@ int main() {
     initPseudoAtomics();
 
     picostation::initHW();
+
+    multicore_lockout_victim_init();
     multicore_launch_core1(picostation::core1Entry);  // I2S Thread
 
     picostation::core0Entry();  // Reset, playback speed, Sled, soct, subq

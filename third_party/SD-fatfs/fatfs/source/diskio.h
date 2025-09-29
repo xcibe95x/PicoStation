@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------/
 /  Low level disk interface modlue include file   (C)ChaN, 2019          /
 /-----------------------------------------------------------------------*/
-
+#include "ff.h"
 #ifndef _DISKIO_DEFINED
 #define _DISKIO_DEFINED
 
