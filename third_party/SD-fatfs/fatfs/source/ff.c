@@ -4088,13 +4088,21 @@ FRESULT __time_critical_func(f_read_scramble) (
 #if FF_FS_TINY
 				if (fs->wflag && fs->winsect - sect < cc) {
 					uint32_t dst_off = (fs->winsect - sect) * SS(fs);
-					scramble_data((uint32_t *)(rbuff + (dst_off << 1), fs->win, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
-				}
+	scramble_data(
+    (uint32_t *)(rbuff + (dst_off << 1)),
+    (uint16_t *)fs->win,
+    dt ? sc + (dst_off >> 1) : NULL,
+    SS(fs) >> 1
+);				}
 #else
 				if ((fp->flag & FA_DIRTY) && fp->sect - sect < cc) {
 					uint32_t dst_off = (fs->sect - sect) * SS(fs);
-					scramble_data((uint32_t *)(rbuff + (dst_off << 1), fs->buf, dt ? sc + (dst_off >> 1) : NULL, SS(fs) >> 1);
-				}
+					scramble_data(
+    (uint32_t *)(rbuff + (dst_off << 1)),
+    (uint16_t *)fs->buf,
+    dt ? sc + (dst_off >> 1) : NULL,
+    SS(fs) >> 1
+);	}
 #endif
 #endif
 				rcnt = SS(fs) * cc;				/* Number of bytes transferred */
