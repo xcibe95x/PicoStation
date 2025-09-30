@@ -20,26 +20,108 @@
 #else
 #define DEBUG_PRINT(...) while (0)
 #endif
+
+// External globals defined elsewhere in the project
 extern picostation::I2S m_i2s;
 extern pseudoatomic<uint32_t> g_fileArg;
 extern pseudoatomic<picostation::FileListingStates> needFileCheckAction;
 extern pseudoatomic<int> listReadyState;
 
+// Local state variables for sled/tracking mechanics
 static bool dir = 0;
 static bool trk_dir = 0;
 static bool prev_dir = 0;
 static bool sled_break = 0;
 static uint16_t m_jumpTrack = 0;
 
+// -----------------------------------------------------------------------------
+// CUSTOM COMMAND HANDLING SYSTEM
+// -----------------------------------------------------------------------------
+
+struct CustomCommandHandler {
+    int id;
+    const char *name;
+    const char *description;
+    void (*handler)(uint32_t arg);
+};
+
+// ---------------- Individual handler implementations ----------------
+
+static void handleNone(uint32_t) {
+    needFileCheckAction = picostation::FileListingStates::IDLE;
+}
+
+static void handleGotoRoot(uint32_t) {
+    DEBUG_PRINT("GOTO_ROOT\n");
+    needFileCheckAction = picostation::FileListingStates::GOTO_ROOT;
+    listReadyState = 0;
+}
+
+static void handleGotoParent(uint32_t) {
+    DEBUG_PRINT("GOTO_PARENT\n");
+    needFileCheckAction = picostation::FileListingStates::GOTO_PARENT;
+    listReadyState = 0;
+}
+
+static void handleGotoDirectory(uint32_t) {
+    DEBUG_PRINT("GOTO_DIRECTORY\n");
+    needFileCheckAction = picostation::FileListingStates::GOTO_DIRECTORY;
+    listReadyState = 0;
+}
+
+static void handleGetNextContents(uint32_t) {
+    DEBUG_PRINT("GET_NEXT_CONTENTS\n");
+    needFileCheckAction = picostation::FileListingStates::GET_NEXT_CONTENTS;
+    listReadyState = 0;
+}
+
+static void handleMountFile(uint32_t) {
+    DEBUG_PRINT("MOUNT_FILE\n");
+    needFileCheckAction = picostation::FileListingStates::MOUNT_FILE;
+}
+
+static void handleIoCommand(uint32_t arg) {
+    DEBUG_PRINT("COMMAND_IO_COMMAND %x\n", arg);
+}
+
+static void handleIoData(uint32_t arg) {
+    DEBUG_PRINT("COMMAND_IO_DATA %x\n", arg);
+}
+
+static void handleBootloader(uint32_t arg) {
+    if (arg == 0xBEEF) {
+        // Restart into bootloader
+        rom_reset_usb_boot_extra(Pin::LED, 0, false);
+    }
+}
+
+// ---------------- Handler lookup table ----------------
+static const CustomCommandHandler kCustomHandlers[] = {
+    { picostation::MechCommand::COMMAND_NONE,          "COMMAND_NONE",          "Clear pending menu work", handleNone },
+    { picostation::MechCommand::COMMAND_GOTO_ROOT,     "COMMAND_GOTO_ROOT",     "Jump to the SD card root directory", handleGotoRoot },
+    { picostation::MechCommand::COMMAND_GOTO_PARENT,   "COMMAND_GOTO_PARENT",   "Enter the parent directory", handleGotoParent },
+    { picostation::MechCommand::COMMAND_GOTO_DIRECTORY,"COMMAND_GOTO_DIRECTORY","Enter the directory indexed by the provided argument", handleGotoDirectory },
+    { picostation::MechCommand::COMMAND_GET_NEXT_CONTENTS,"COMMAND_GET_NEXT_CONTENTS","Request the next page of directory entries", handleGetNextContents },
+    { picostation::MechCommand::COMMAND_MOUNT_FILE,    "COMMAND_MOUNT_FILE",    "Mount the file indexed by the provided argument", handleMountFile },
+    { picostation::MechCommand::COMMAND_IO_COMMAND,    "COMMAND_IO_COMMAND",    "Begin a metadata IO transaction (e.g. game ID transfer)", handleIoCommand },
+    { picostation::MechCommand::COMMAND_IO_DATA,       "COMMAND_IO_DATA",       "Send a 16-bit payload for the active metadata IO transaction", handleIoData },
+    { picostation::MechCommand::COMMAND_BOOTLOADER,    "COMMAND_BOOTLOADER",    "Reboot the RP2040 into the USB bootloader when armed", handleBootloader },
+};
+
+// -----------------------------------------------------------------------------
+// MAIN COMMAND PROCESSOR
+// -----------------------------------------------------------------------------
+
 void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 {
-    static mech_cmd command;
+    static picostation::MechCommand::mech_cmd command;
     command.raw = m_latched;
     m_latched = 0;
     
 	switch (command.cmd.id)
     {
-		case MECH_CMD_TRACKING_MODE:
+        // Tracking-related commands
+		case  picostation::MechCommand::MECH_CMD_TRACKING_MODE:
 		{
 			if(!g_driveMechanics.isSledStopped())
 			{
@@ -57,7 +139,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 
 			switch(command.tracking_mode.sled)
 			{		
-				case SLED_FORWARD:
+				case picostation::MechCommand::SLED_FORWARD:
 				{
 					DEBUG_PRINT("SLED FORWARD\n");
 					dir = 0;
@@ -66,7 +148,7 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 					break;
 				}
 
-				case SLED_REVERSE:
+				case picostation::MechCommand::SLED_REVERSE:
 				{
 					DEBUG_PRINT("SLED REVERSE\n");
 					dir = 1;
@@ -78,16 +160,17 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			break;
 		}
 		
-		case MECH_CMD_AUTO_SEQUENCE:
+        // Auto-sequence commands
+		case picostation::MechCommand::MECH_CMD_AUTO_SEQUENCE:
 		{
 	        switch(command.aseq_cmd.cmd)
 	        {
-	            case ASEQ_CMD_CANCEL:
+	            case picostation::MechCommand::ASEQ_CMD_CANCEL:
 					setSens(SENS::XBUSY, false);
 	            	m_i2s.i2s_set_state(1);
 					return;
 				
-	            case ASEQ_CMD_FOCUS_ON:
+	            case picostation::MechCommand::ASEQ_CMD_FOCUS_ON:
 					DEBUG_PRINT("ASEQ FOCUS ON\n");
 					setSens(SENS::FOK, true);
 					m_i2s.i2s_set_state(0);
@@ -100,26 +183,26 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 					}, this, true);
 					break;
 
-				case ASEQ_CMD_1TRK_JUMP:
-					//DEBUG_PRINT("ASEQ 1TRK %c\n", command.aseq_cmd.dir ? '-' : '+');
+				case picostation::MechCommand::ASEQ_CMD_1TRK_JUMP:
 					g_driveMechanics.setSector(1, command.aseq_cmd.dir);
 					break;
 
-	            case ASEQ_CMD_2NTRK_JUMP:
-					//DEBUG_PRINT("ASEQ 2NTRK (%d) %c\n", m_jumpTrack << 1, command.aseq_cmd.dir ? '-' : '+');
+	            case picostation::MechCommand::ASEQ_CMD_2NTRK_JUMP:
 	            	g_driveMechanics.setSector(m_jumpTrack << 1, command.aseq_cmd.dir);
 					break;
 			}
 			break;
 		}
 		
-		case MECH_CMD_ASEQ_TRACK_COUNT:
+        // Track count command
+		case picostation::MechCommand::MECH_CMD_ASEQ_TRACK_COUNT:
 		{
 			m_jumpTrack = command.aseq_track_count.count;
 			break;
 		}
 		
-		case MECH_CMD_MODE_SPECIFICATION:
+        // Mode specification
+		case picostation::MechCommand::MECH_CMD_MODE_SPECIFICATION:
 		{
 			setSoct(command.mode_specification.SOCT);
 			
@@ -133,36 +216,37 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			break;
 		}
 		
-		case MECH_CMD_FUNCTION_SPECIFICATION:
+        // Function specification
+		case picostation::MechCommand::MECH_CMD_FUNCTION_SPECIFICATION:
 		{
 			g_targetPlaybackSpeed = command.function_specification.DSPB + 1;
 			break;
 		}
 		
-		case MECH_CMD_CLV_MODE:
+        // CLV control
+		case picostation::MechCommand::MECH_CMD_CLV_MODE:
 		{
 			sled_break = 0;
 			switch(command.clv_mode.mode)
 			{
-				case CLV_MODE_STOP:
+				case picostation::MechCommand::CLV_MODE_STOP:
 					setSens(SENS::GFS, false);
 					m_i2s.i2s_set_state(0);
 					DEBUG_PRINT("T\n");
 					break;
 				
-				case CLV_MODE_BRAKE:
+				case picostation::MechCommand::CLV_MODE_BRAKE:
 					DEBUG_PRINT("B\n");
 					break;
 					
-				case CLV_MODE_KICK:
+				case picostation::MechCommand::CLV_MODE_KICK:
 					DEBUG_PRINT("K\n");
 					break;
 
-
-				case CLV_MODE_CLVS:
-				case CLV_MODE_CLVH:
-				case CLV_MODE_CLVP:
-				case CLV_MODE_CLVA:
+				case picostation::MechCommand::CLV_MODE_CLVS:
+				case picostation::MechCommand::CLV_MODE_CLVH:
+				case picostation::MechCommand::CLV_MODE_CLVP:
+				case picostation::MechCommand::CLV_MODE_CLVA:
 					setSens(SENS::GFS, true);
 					m_i2s.i2s_set_state(1);
 					setSens(SENS::XBUSY, false);
@@ -171,81 +255,23 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			break;
 		}
 		
-		case MECH_CMD_CUSTOM:
+        // Custom command dispatch
+		case picostation::MechCommand::MECH_CMD_CUSTOM:
 		{
 			g_fileArg = command.custom_cmd.arg;
 
-			switch (command.custom_cmd.cmd)
-			{
-				case COMMAND_NONE:
-				{
-					needFileCheckAction = FileListingStates::IDLE;
+			bool handled = false;
+			for (auto &entry : kCustomHandlers) {
+				if (entry.id == command.custom_cmd.cmd) {
+					DEBUG_PRINT("%s: %s (arg=%u)\n", entry.name, entry.description, command.custom_cmd.arg);
+					entry.handler(command.custom_cmd.arg);
+					handled = true;
 					break;
 				}
-					
-				case COMMAND_GOTO_ROOT:
-				{
-					DEBUG_PRINT("GOTO_ROOT\n");
-					needFileCheckAction = FileListingStates::GOTO_ROOT;
-					listReadyState = 0;
-					break;
-				}
-					
-				case COMMAND_GOTO_PARENT:
-				{
-					DEBUG_PRINT("GOTO_PARENT\n");
-					needFileCheckAction = FileListingStates::GOTO_PARENT;
-					listReadyState = 0;
-					break;
-				}
-					
-				case COMMAND_GOTO_DIRECTORY:
-				{
-					DEBUG_PRINT("GOTO_DIRECTORY\n");
-					needFileCheckAction = FileListingStates::GOTO_DIRECTORY;
-					listReadyState = 0;
-					break;
-				}
-					
-				case COMMAND_GET_NEXT_CONTENTS:
-				{
-					DEBUG_PRINT("GET_NEXT_CONTENTS\n");
-					needFileCheckAction = FileListingStates::GET_NEXT_CONTENTS;
-					listReadyState = 0;
-					break;
-				}
-					
-				case COMMAND_MOUNT_FILE:
-				{
-					DEBUG_PRINT("MOUNT_FILE\n");
-					needFileCheckAction = FileListingStates::MOUNT_FILE;
-					break;
-				}
-					
-				case COMMAND_IO_COMMAND:
-				{
-					DEBUG_PRINT("COMMAND_IO_COMMAND %x\n", command.custom_cmd.arg);
-					break;
-				}
-					
-				case COMMAND_IO_DATA:
-				{
-					DEBUG_PRINT("COMMAND_IO_DATA %x\n", command.custom_cmd.arg);
-					break;
-				}
-					
-				case COMMAND_BOOTLOADER:
-				{
-					if (command.custom_cmd.arg == 0xBEEF)
-					{
-						// Restart into bootloader
-						rom_reset_usb_boot_extra(Pin::LED, 0, false);
-					}
-					break;
-				}
-				
-				default:
-					break;
+			}
+
+			if (!handled) {
+				DEBUG_PRINT("Unknown custom command: %d\n", command.custom_cmd.cmd);
 			}
 			break;
 		}
@@ -254,6 +280,10 @@ void __time_critical_func(picostation::MechCommand::processLatchedCommand)()
 			break;
 	}
 }
+
+// -----------------------------------------------------------------------------
+// SENSOR + STATE UTILITIES
+// -----------------------------------------------------------------------------
 
 bool __time_critical_func(picostation::MechCommand::getSens)(const size_t what) const { return m_sensData[what]; }
 
@@ -286,4 +316,3 @@ void __time_critical_func(picostation::MechCommand::updateMech)()
     }
     gpio_put(Pin::SENS, m_sensData[m_currentSens]);
 }
-

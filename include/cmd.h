@@ -71,6 +71,7 @@ class MechCommand {
 		CLV_MODE_CLVA  = 0x6,
 	};
 	
+	public:
 	enum CUSTOM_CMD
 	{
 		COMMAND_NONE = 0x0,
