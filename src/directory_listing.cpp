@@ -1,3 +1,4 @@
+// directory_listing.cpp - Manages SD card navigation and builds menu-friendly directory listings.
 #include "directory_listing.h"
 
 #include <stddef.h>

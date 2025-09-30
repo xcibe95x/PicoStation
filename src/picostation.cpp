@@ -1,3 +1,4 @@
+// picostation.cpp - Coordinates high-level hardware setup, interrupts, and global control loops.
 #include "picostation.h"
 
 #include <stdio.h>
@@ -441,4 +442,3 @@ void __time_critical_func(picostation::reset)()
 	s_resetPending = 0;
 	gpio_set_irq_enabled(Pin::RESET, GPIO_IRQ_LEVEL_LOW, true);
 }
-

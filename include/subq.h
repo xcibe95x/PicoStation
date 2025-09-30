@@ -1,3 +1,4 @@
+// subq.h - Exposes SubQ channel generation and data structures.
 #pragma once
 
 #include <stdint.h>

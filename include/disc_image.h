@@ -1,3 +1,4 @@
+// disc_image.h - Interfaces for cue sheet parsing and sector generation.
 #pragma once
 
 #include <stdint.h>

@@ -1,3 +1,4 @@
+// listingBuilder.h - Utility for assembling directory listings into the menu transfer format.
 #pragma once
 
 #include <string.h>

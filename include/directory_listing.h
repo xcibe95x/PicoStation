@@ -1,3 +1,4 @@
+// directory_listing.h - Declares helpers for browsing SD card directories and building listings.
 #pragma once
 
 #include <stddef.h>

@@ -1,3 +1,4 @@
+// drive_mechanics.h - Models sled and spindle behaviour for virtual disc access.
 #pragma once
 
 #include <algorithm>
@@ -41,4 +42,3 @@ class DriveMechanics {
 
 extern DriveMechanics g_driveMechanics;
 }  // namespace picostation
-

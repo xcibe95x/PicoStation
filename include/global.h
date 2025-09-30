@@ -1,3 +1,4 @@
+// global.h - Shared compile-time constants and utility prototypes used across PicoStation.
 #pragma once
 
 #define MAX_CUES 255

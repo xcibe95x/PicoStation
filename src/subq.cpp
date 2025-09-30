@@ -1,3 +1,4 @@
+// subq.cpp - Generates and transmits CD sub-channel (SubQ) data for the console.
 #include "subq.h"
 
 #include <stddef.h>

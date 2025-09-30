@@ -1,3 +1,5 @@
+// picostation.h - Global declarations, shared enums, and cross-core entry points.
+#pragma once
 #include "hardware/pwm.h"
 #include "pico/multicore.h"
 #include "pseudo_atomics.h"
@@ -53,4 +55,3 @@ void initHW();
 void updatePlaybackSpeed();
 void reset();
 }  // namespace picostation
-

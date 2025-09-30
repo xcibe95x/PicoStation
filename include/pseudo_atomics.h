@@ -1,3 +1,4 @@
+// pseudo_atomics.h - Lightweight helpers offering atomic-like semantics for cross-core data.
 #pragma once
 
 // Thin wrapper around RP2040Atomic.hpp

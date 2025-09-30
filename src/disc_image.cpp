@@ -1,3 +1,4 @@
+// disc_image.cpp - Loads cue sheets and assembles CD sectors for streaming.
 #include "disc_image.h"
 
 #include <ctype.h>
@@ -553,4 +554,3 @@ void __time_critical_func(picostation::DiscImage::readSectorSD)(void *buffer, co
         //br = c_cdSamplesBytes;
     }
 }
-

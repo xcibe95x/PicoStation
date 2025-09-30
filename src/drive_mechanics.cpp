@@ -1,3 +1,4 @@
+// drive_mechanics.cpp - Simulates PlayStation drive mechanics for sector addressing and sled motion.
 #include "drive_mechanics.h"
 
 #include <algorithm>
@@ -30,6 +31,7 @@ picostation::DriveMechanics picostation::g_driveMechanics;
 
 void __time_critical_func(picostation::DriveMechanics::moveToNextSector)()
 {
+    // Advance the cached sector counter and update zone tracking when thresholds change.
 	if(m_sector < c_sectorMax){
 		m_sector++;
 	}
@@ -42,6 +44,7 @@ void __time_critical_func(picostation::DriveMechanics::moveToNextSector)()
 
 void __time_critical_func(picostation::DriveMechanics::setSector)(uint32_t step, bool rev)
 {
+    // Step the virtual sled by a number of logical tracks, mimicking zone-based seek limits.
 	m_i2s.i2s_set_state(0);
 
 	while(step != 0)
@@ -112,7 +115,9 @@ bool __time_critical_func(picostation::DriveMechanics::servo_valid)()
 
 }
 
-void __time_critical_func(picostation::DriveMechanics::moveSled)(picostation::MechCommand &mechCommand){
+void __time_critical_func(picostation::DriveMechanics::moveSled)(picostation::MechCommand &mechCommand)
+{
+    // Toggle the simulated sled counter to generate pulses for the console during sled motion.
     if ((time_us_64() - m_sledTimer) > c_MaxTrackMoveTime)
     {
 		cur_track_counter++;
@@ -128,8 +133,8 @@ void __time_critical_func(picostation::DriveMechanics::moveSled)(picostation::Me
 
 void __time_critical_func(picostation::DriveMechanics::startSled)()
 {
+    // Begin a sled move operation and reset related timers.
 	sled_work = 1;
 	cur_track_counter = 0;
 	m_sledTimer = time_us_64();
 }
-

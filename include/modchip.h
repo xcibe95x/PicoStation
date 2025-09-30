@@ -1,3 +1,4 @@
+// modchip.h - Interface for the modchip emulation responsible for SCEX licensing signals.
 #pragma once
 
 #include <stdint.h>

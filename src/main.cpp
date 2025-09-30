@@ -1,3 +1,4 @@
+// main.cpp - Entry point wiring cores, hardware init, and application start-up tasks.
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"

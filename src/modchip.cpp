@@ -1,3 +1,4 @@
+// modchip.cpp - Emulates the system modchip signal generation for license wobble handling.
 #include "modchip.h"
 
 #include <stdio.h>

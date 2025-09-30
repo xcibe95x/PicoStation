@@ -1,3 +1,4 @@
+// logging.h - Simple logging macros shared across the firmware.
 #pragma once
 
 #define DEBUG_CMD 0

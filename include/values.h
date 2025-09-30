@@ -1,3 +1,4 @@
+// values.h - Consolidated numeric constants for timing, sectors, and buffer sizing.
 #pragma once
 
 #include <stddef.h>
