@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <array>
 
-#include "commands/cmd.h"
+#include "commands/mech_commands.h"
 #include "systems/directory_listing.h"
 #include "emulation/disc_image.h"
 #include "emulation/drive_mechanics.h"

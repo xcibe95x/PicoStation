@@ -5,7 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "emulation/i2s.h"
-#include "commands/cmd.h"
+#include "commands/mech_commands.h"
 #include "commons/values.h"
 #include "commons/logging.h"
 

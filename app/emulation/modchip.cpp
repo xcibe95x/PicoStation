@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#include "commands/cmd.h"
+#include "commands/mech_commands.h"
 #include "disc_image.h"
 #include "hardware/uart.h"
 #include "commons/logging.h"

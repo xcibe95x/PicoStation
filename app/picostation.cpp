@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "commands/cmd.h"
+#include "commands/custom_commands.h"
+#include "commands/mech_commands.h"
 #include "emulation/disc_image.h"
 #include "systems/directory_listing.h"
 #include "emulation/drive_mechanics.h"
