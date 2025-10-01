@@ -2,6 +2,7 @@
 #include "commands/mech_commands.h"         
 #include "commands/custom_commands.h"                     // for MechCommand::CUSTOM_CMD
 #include "systems/directory_listing.h"
+#include "hardware/watchdog.h"
 #include "commons/pseudo_atomics.h"
 #include "picostation.h"
 #include "pico/bootrom.h"
@@ -66,6 +67,29 @@ static void handleBootloader(uint32_t arg) {
     }
 }
 
+static void handleFirmwareUpdate(uint32_t arg) {
+    constexpr uint32_t FW_UPDATE_MAGIC = 0xC0FFEE;
+
+    if (arg != FW_UPDATE_MAGIC) {
+        DEBUG_PRINT("COMMAND_FW_UPDATE ignored (bad magic %08x)\n", arg);
+        return;
+    }
+
+    DEBUG_PRINT("COMMAND_FW_UPDATE: rebooting into bootloader for SD update\n");
+
+    // Give a tiny delay so the message/last frame flushes
+    sleep_ms(200);
+
+    // Full chip reset: on restart, your dedicated bootloader runs and checks fw.bin
+    watchdog_reboot(0, 0, 0);
+
+    // Never return
+    while (true) {
+        tight_loop_contents();
+    }
+}
+
+
 // ---------------- Handler table ----------------
 struct CustomCommandHandler {
     int id;
@@ -84,6 +108,7 @@ static const CustomCommandHandler kCustomHandlers[] = {
     { picostation::COMMAND_IO_COMMAND,    "COMMAND_IO_COMMAND",    "Begin a metadata IO transaction (e.g. game ID transfer)", handleIoCommand },
     { picostation::COMMAND_IO_DATA,       "COMMAND_IO_DATA",       "Send a 16-bit payload for the active metadata IO transaction", handleIoData },
     { picostation::COMMAND_BOOTLOADER,    "COMMAND_BOOTLOADER",    "Reboot the RP2040 into the USB bootloader when armed", handleBootloader },
+    { picostation::COMMAND_FW_UPDATE,    "COMMAND_FW_UPDATE",    "Reboot the RP2040 into the USB bootloader when armed", handleFirmwareUpdate },
 };
 
 // ---------------- Dispatcher ----------------

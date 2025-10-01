@@ -1,10 +1,9 @@
-#include "cmd.h"
-#include "custom_cmd.h"
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include "commands/custom_commands.h"
+#include "commands/mech_commands.h"
 #include "emulation/i2s.h"
 #include "emulation/drive_mechanics.h"
 #include "hardware/pio.h"

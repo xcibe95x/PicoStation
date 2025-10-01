@@ -13,7 +13,8 @@ enum CUSTOM_CMD {
     COMMAND_MOUNT_FILE     = 0x5,
     COMMAND_IO_COMMAND     = 0x6,
     COMMAND_IO_DATA        = 0x7,
-    COMMAND_BOOTLOADER     = 0xA
+    COMMAND_BOOTLOADER     = 0xA,
+    COMMAND_FW_UPDATE       = 0xB
 };
 
 // Dispatch a custom command (COMMAND_* + arg).
