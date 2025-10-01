@@ -4,21 +4,21 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "cmd.h"
-#include "disc_image.h"
-#include "directory_listing.h"
-#include "drive_mechanics.h"
+#include "commands/cmd.h"
+#include "emulation/disc_image.h"
+#include "systems/directory_listing.h"
+#include "emulation/drive_mechanics.h"
 #include "hardware/pwm.h"
 #include <hardware/i2c.h>
-#include "i2s.h"
-#include "logging.h"
+#include "emulation/i2s.h"
+#include "commons/logging.h"
 #include "main.pio.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
-#include "pseudo_atomics.h"
-#include "subq.h"
-#include "values.h"
-#include "si5351.h"
+#include "commons/pseudo_atomics.h"
+#include "emulation/subq.h"
+#include "commons/values.h"
+#include "systems/si5351.h"
 
 #if DEBUG_MAIN
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)

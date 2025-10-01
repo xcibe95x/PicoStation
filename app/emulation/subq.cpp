@@ -5,13 +5,13 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "drive_mechanics.h"
-#include "disc_image.h"
+#include "emulation/drive_mechanics.h"
+#include "emulation/disc_image.h"
 #include "hardware/pio.h"
-#include "logging.h"
+#include "commons/logging.h"
 #include "main.pio.h"
 #include "picostation.h"
-#include "values.h"
+#include "commons/values.h"
 
 #if DEBUG_SUBQ
 #define DEBUG_PRINT printf

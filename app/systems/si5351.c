@@ -3,7 +3,7 @@
 // change for your MCU
 #include <hardware/i2c.h>
 
-#include <si5351.h>
+#include <systems/si5351.h>
 #define SI5351_ADDRESS 0x60
 #define I2C_HANDLE i2c0
 

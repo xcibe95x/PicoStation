@@ -9,22 +9,22 @@
 #include <algorithm>
 #include <array>
 
-#include "cmd.h"
-#include "directory_listing.h"
-#include "disc_image.h"
-#include "drive_mechanics.h"
+#include "commands/cmd.h"
+#include "systems/directory_listing.h"
+#include "emulation/disc_image.h"
+#include "emulation/drive_mechanics.h"
 #include "ff.h"
-#include "global.h"
+#include "commons/global.h"
 #include "hardware/pio.h"
-#include "logging.h"
+#include "commons/logging.h"
 #include "main.pio.h"
-#include "modchip.h"
+#include "emulation/modchip.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
-#include "pseudo_atomics.h"
-#include "subq.h"
-#include "values.h"
-#include "listingBuilder.h"
+#include "commons/pseudo_atomics.h"
+#include "emulation/subq.h"
+#include "commons/values.h"
+#include "commons/listingBuilder.h"
 
 #if DEBUG_I2S
 #define DEBUG_PRINT printf

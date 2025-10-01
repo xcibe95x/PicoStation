@@ -4,8 +4,8 @@
 #include <algorithm>
 #include <stdint.h>
 
-#include "pseudo_atomics.h"
-#include "values.h"
+#include "commons/pseudo_atomics.h"
+#include "commons/values.h"
 
 namespace picostation {
 class MechCommand;

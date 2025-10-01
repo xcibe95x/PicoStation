@@ -4,16 +4,16 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "i2s.h"
-#include "drive_mechanics.h"
+#include "emulation/i2s.h"
+#include "emulation/drive_mechanics.h"
 #include "hardware/pio.h"
-#include "logging.h"
+#include "commons/logging.h"
 #include "main.pio.h"
 #include "pico/bootrom.h"
 #include "picostation.h"
-#include "pseudo_atomics.h"
-#include "values.h"
-#include "directory_listing.h"
+#include "commons/pseudo_atomics.h"
+#include "commons/values.h"
+#include "systems/directory_listing.h"
 
 #if DEBUG_CMD
 #define DEBUG_PRINT printf

@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "global.h"
+#include "commons/global.h"
 #include "ff.h"
-#include "listingBuilder.h"
+#include "commons/listingBuilder.h"
 
 #if DEBUG_FILEIO
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)

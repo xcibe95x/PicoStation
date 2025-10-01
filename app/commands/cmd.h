@@ -3,8 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "drive_mechanics.h"
-#include "pseudo_atomics.h"
+#include "emulation/drive_mechanics.h"
+#include "commons/pseudo_atomics.h"
 
 namespace picostation {
 

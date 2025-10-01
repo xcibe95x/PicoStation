@@ -32,14 +32,14 @@ if(NOT DEFINED PICOSTATION_VARIANT)
     message(STATUS "NOTE: PicoStation variant not defined. Using ${PICOSTATION_VARIANT}")
 endif()
 
-include(boards/picostation_variant.cmake)
+include(pico/boards/picostation_variant.cmake)
 
 cmake_minimum_required(VERSION 3.24.1)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include(pico_sdk_import.cmake)
+include(pico/cmake/pico_sdk_import.cmake)
 
 project(${PROJECT_NAME})
 
@@ -97,20 +97,20 @@ target_compile_definitions(
     MAXINDEX=2
 )
 
-addBinaryFileWithSize(${PROJECT_NAME} loaderImage loaderImageSize binary/picostation-menu.bin)
+addBinaryFileWithSize(${PROJECT_NAME} loaderImage loaderImageSize app/images/menu.bin)
 
 target_sources(
     ${PROJECT_NAME} PRIVATE
-    src/cmd.cpp
-    src/disc_image.cpp
-    src/drive_mechanics.cpp
-    src/i2s.cpp
-    src/main.cpp
-    src/modchip.cpp
-    src/picostation.cpp
-    src/subq.cpp
-    src/directory_listing.cpp
-    src/si5351.c
+    app/main.cpp
+    app/picostation.cpp
+    app/commands/cmd.cpp
+    app/emulation/disc_image.cpp
+    app/emulation/drive_mechanics.cpp
+    app/emulation/i2s.cpp
+    app/emulation/modchip.cpp
+    app/emulation/subq.cpp
+    app/systems/directory_listing.cpp
+    app/systems/si5351.c
     third_party/cueparser/cueparser.c
     third_party/cueparser/fileabstract.c
     third_party/cueparser/scheduler.c
@@ -120,7 +120,7 @@ target_sources(
 target_include_directories(
     ${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/app
     ${CMAKE_CURRENT_LIST_DIR}/third_party
 )
 
@@ -130,7 +130,7 @@ add_subdirectory(third_party/RP2040_Pseudo_Atomic)
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
-pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio/main.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pico/pio/main.pio)
 
 target_link_libraries(
     ${PROJECT_NAME} PRIVATE
@@ -155,7 +155,7 @@ pico_add_extra_outputs(${PROJECT_NAME})
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(UF2_FILE "${CMAKE_BINARY_DIR}/${PICOSTATION_VARIANT}.uf2")
-set(PATCH_SCRIPT "${CMAKE_SOURCE_DIR}/tools/patch_boot.py")
+set(PATCH_SCRIPT "${CMAKE_SOURCE_DIR}/utils/patch_boot.py")
 set(PATCH_STAMP  "${CMAKE_BINARY_DIR}/${PICOSTATION_VARIANT}.uf2.patched.stamp")
 
 if (BOOT_PATCHING AND EXISTS "${PATCH_SCRIPT}")

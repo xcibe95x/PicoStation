@@ -4,10 +4,10 @@
 
 #include <array>
 
-#include "pseudo_atomics.h"
+#include "commons/pseudo_atomics.h"
 #include "hardware/dma.h"
 #include "ff.h"
-#include "disc_image.h"
+#include "emulation/disc_image.h"
 
 #define CACHED_SECS		32 /* Only 2, 4, 8, 16, 32 */
 

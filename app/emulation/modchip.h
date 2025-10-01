@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "cmd.h"
+#include "commands/cmd.h"
 
 namespace picostation {
 class MechCommand;

@@ -8,12 +8,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "ff.h"
-#include "logging.h"
+#include "commons/logging.h"
 #include "picostation.h"
-#include "subq.h"
+#include "emulation/subq.h"
 #include "third_party/posix_file.h"
-#include "values.h"
-#include "global.h"
+#include "commons/values.h"
+#include "commons/global.h"
 
 #if DEBUG_CUE
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)

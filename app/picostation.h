@@ -2,7 +2,7 @@
 #pragma once
 #include "hardware/pwm.h"
 #include "pico/multicore.h"
-#include "pseudo_atomics.h"
+#include "commons/pseudo_atomics.h"
 
 namespace picostation {
 

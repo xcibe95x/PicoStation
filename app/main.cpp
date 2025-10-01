@@ -4,7 +4,7 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
-#include "pseudo_atomics.h"
+#include "commons/pseudo_atomics.h"
 #include <cstdio>
 #include <csignal>
 

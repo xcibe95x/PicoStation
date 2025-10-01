@@ -3,13 +3,13 @@
 
 #include <stdio.h>
 
-#include "cmd.h"
+#include "commands/cmd.h"
 #include "disc_image.h"
 #include "hardware/uart.h"
-#include "logging.h"
+#include "commons/logging.h"
 #include "pico/stdlib.h"
 #include "picostation.h"
-#include "values.h"
+#include "commons/values.h"
 
 #if DEBUG_MODCHIP
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)

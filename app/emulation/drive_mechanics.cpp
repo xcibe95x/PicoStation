@@ -4,10 +4,10 @@
 #include <algorithm>
 #include <math.h>
 #include <stdio.h>
-#include "i2s.h"
-#include "cmd.h"
-#include "values.h"
-#include "logging.h"
+#include "emulation/i2s.h"
+#include "commands/cmd.h"
+#include "commons/values.h"
+#include "commons/logging.h"
 
 #if DEBUG_CMD
 #define DEBUG_PRINT printf
