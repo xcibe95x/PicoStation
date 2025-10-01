@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "commands/custom_commands.h"
 #include "commands/mech_commands.h"
 #include "emulation/disc_image.h"
 #include "systems/directory_listing.h"

@@ -103,7 +103,8 @@ target_sources(
     ${PROJECT_NAME} PRIVATE
     app/main.cpp
     app/picostation.cpp
-    app/commands/cmd.cpp
+    app/commands/mech_commands.cpp
+    app/commands/custom_commands.cpp
     app/emulation/disc_image.cpp
     app/emulation/drive_mechanics.cpp
     app/emulation/i2s.cpp

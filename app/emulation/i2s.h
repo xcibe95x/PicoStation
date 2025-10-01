@@ -5,6 +5,7 @@
 #include <array>
 
 #include "commons/pseudo_atomics.h"
+#include "commands/mech_commands.h"
 #include "hardware/dma.h"
 #include "ff.h"
 #include "emulation/disc_image.h"
@@ -12,8 +13,6 @@
 #define CACHED_SECS		32 /* Only 2, 4, 8, 16, 32 */
 
 namespace picostation {
-class MechCommand;
-
 class I2S {
   public:
     I2S() {};
