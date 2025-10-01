@@ -21,6 +21,13 @@ class DiscImage {
         SDCard
     };
 
+
+    enum class UniromPatchMode : uint8_t {
+        Default = 0,
+        NtscToPal,
+        PalToNtsc,
+    };
+
     void buildSector(const int sector, uint32_t *buffer, uint16_t *userData, const uint16_t *scramling);
     FRESULT load(const TCHAR *targetCue);
     void unload();
@@ -30,11 +37,15 @@ class DiscImage {
     void readSector(void *buffer, const int sector, DataLocation location, const uint16_t *scramling);
     void readSectorRAM(void *buffer, const int sector, const uint16_t *scramling);
     void readSectorSD(void *buffer, const int sector, const uint16_t *scramling);
+    void setUniromPatchMode(UniromPatchMode mode);
+    UniromPatchMode getUniromPatchMode() const;
 
   private:
+    const uint8_t *getLoaderSectorData(int adjustedSector);
     CueDisc m_cueDisc;
     bool m_hasData = false;
     int m_currentLogicalTrack = 0;
+    UniromPatchMode m_uniromPatchMode = UniromPatchMode::Default;
 };
 
 extern DiscImage g_discImage;
